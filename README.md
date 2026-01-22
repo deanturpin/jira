@@ -47,22 +47,9 @@ The number `123` is your Board ID.
 
 Use numbered suffixes (`_1`, `_2`, etc.) for each project:
 
-#### Single Project
+#### Add Projects
 
-```env
-JIRA_URL=https://your-domain.atlassian.net
-JIRA_EMAIL=your-email@example.com
-JIRA_API_TOKEN=your_token_here
-
-JIRA_PROJECT_KEY_1=PROJ
-JIRA_BOARD_ID_1=123
-TEAM_SIZE_1=4
-SPRINT_LENGTH_WEEKS_1=2
-
-RESEND_API_KEY=re_xxxxx
-```
-
-#### Multiple Projects
+Update `.env` with your project and API info.
 
 ```env
 JIRA_URL=https://your-domain.atlassian.net
