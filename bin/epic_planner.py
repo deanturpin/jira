@@ -21,7 +21,7 @@ class EpicPlanner:
             if epic.get('done', False):
                 continue
 
-            issues = self.client.get_epic_issues(epic['id'])
+            issues = self.client.get_epic_issues(epic['key'])
 
             total_points = 0.0
             completed_points = 0.0

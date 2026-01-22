@@ -1,0 +1,428 @@
+#!/usr/bin/env python3
+"""Generate PDF reports combining dashboard metrics and Gantt charts."""
+
+import os
+import sys
+import io
+import base64
+from datetime import datetime
+from dotenv import load_dotenv
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.units import mm, inch
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.pdfgen import canvas
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+from jira_client import JiraClient
+from velocity_calculator import VelocityCalculator
+import requests
+
+
+def create_velocity_chart(velocity_data, velocity_stats):
+    """Create velocity trend chart as temporary image."""
+    if not velocity_data:
+        return None
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+
+    sprint_names = [s['sprint_name'] for s in velocity_data]
+    completed_points = [s['completed_points'] for s in velocity_data]
+
+    x = range(len(sprint_names))
+    ax.bar(x, completed_points, color='#667eea', alpha=0.7, label='Completed Points')
+
+    # Add mean line
+    ax.axhline(y=velocity_stats['mean'], color='#cc4748', linestyle='--', linewidth=2, label=f'Mean: {velocity_stats["mean"]:.1f}')
+
+    ax.set_xlabel('Sprint', fontweight='bold')
+    ax.set_ylabel('Story Points', fontweight='bold')
+    ax.set_title('Sprint Velocity History', fontweight='bold', pad=15)
+    ax.set_xticks(x)
+    ax.set_xticklabels(sprint_names, rotation=45, ha='right')
+    ax.legend()
+    ax.grid(axis='y', alpha=0.3, linestyle='--')
+
+    plt.tight_layout()
+
+    # Save to bytes buffer
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    buf.seek(0)
+    plt.close()
+
+    return buf
+
+
+def get_jira_colour_hex(colour_key):
+    """Map Jira colour keys to actual Jira hex values."""
+    # Actual Jira epic colours from https://gist.github.com/jusuchin85/efa658429befb73916b40b1e1a773762
+    colour_map = {
+        'color_1': '#8d542e',   # Brown
+        'color_2': '#ff8b00',   # Orange
+        'color_3': '#ffab01',   # Light orange
+        'color_4': '#0052cc',   # Blue (default)
+        'color_5': '#505f79',   # Grey-blue
+        'color_6': '#5fa321',   # Green
+        'color_7': '#cd4288',   # Pink/Magenta
+        'color_8': '#5143aa',   # Purple
+        'color_9': '#ff8f73',   # Coral/Salmon
+        'color_10': '#2584ff',  # Bright blue
+        'color_11': '#018da6',  # Teal
+        'color_12': '#6b778c',  # Grey
+        'color_13': '#03875a',  # Dark green
+        'color_14': '#de350a',  # Red/Orange-red
+    }
+    return colors.HexColor(colour_map.get(colour_key, colour_map['color_4']))
+
+
+def create_header_footer(canvas_obj, doc):
+    """Add header and footer to each page."""
+    canvas_obj.saveState()
+
+    # Footer
+    canvas_obj.setFont('Helvetica', 8)
+    canvas_obj.setFillColor(colors.grey)
+    canvas_obj.drawString(
+        30 * mm,
+        10 * mm,
+        f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    )
+    canvas_obj.drawRightString(
+        doc.pagesize[0] - 30 * mm,
+        10 * mm,
+        f"Page {doc.page}"
+    )
+
+    canvas_obj.restoreState()
+
+
+def generate_project_pdf(client, project_key, board_id, team_size, jira_url):
+    """Generate PDF report for a single project."""
+
+    # Get velocity data
+    print("Fetching velocity data...")
+    velocity_calc = VelocityCalculator(client)
+    velocity_data = velocity_calc.get_historical_velocity(board_id, months=6)
+    velocity_stats = velocity_calc.calculate_velocity_stats(velocity_data)
+
+    avg_velocity = velocity_stats['mean']
+
+    # Get epic data
+    print("Fetching epic data...")
+    url = os.getenv('JIRA_URL').rstrip('/')
+    auth = (os.getenv('JIRA_EMAIL'), os.getenv('JIRA_API_TOKEN'))
+    headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+    epic_response = requests.get(
+        f'{url}/rest/agile/1.0/board/{board_id}/epic',
+        auth=auth,
+        headers={'Accept': 'application/json'},
+        params={'maxResults': 100}
+    )
+
+    epics = epic_response.json().get('values', [])
+    active_epics = [e for e in epics if not e.get('done', False)]
+
+    # Get remaining points for each epic
+    epic_data = []
+    for epic in active_epics:
+        epic_key = epic['key']
+        epic_name = epic.get('summary', epic.get('name', 'Unnamed'))
+        epic_colour = epic.get('color', {}).get('key', 'color_4')  # Default to blue if no colour set
+
+        issue_response = requests.post(
+            f'{url}/rest/api/3/search/jql',
+            auth=auth,
+            headers=headers,
+            json={
+                'jql': f'parent = {epic_key}',
+                'maxResults': 200,
+                'fields': ['customfield_10016', 'customfield_10026', 'customfield_10031', 'status']
+            }
+        )
+
+        if issue_response.status_code != 200:
+            continue
+
+        issues = issue_response.json().get('issues', [])
+
+        total_points = 0.0
+        completed_points = 0.0
+        for issue in issues:
+            points = issue['fields'].get('customfield_10016') or issue['fields'].get('customfield_10026') or issue['fields'].get('customfield_10031')
+            points = float(points) if points else 0.0
+            total_points += points
+
+            status = issue['fields'].get('status', {}).get('name', '').lower()
+            if status in ['done', 'closed', 'resolved']:
+                completed_points += points
+
+        remaining_points = total_points - completed_points
+
+        if remaining_points > 0:
+            epic_data.append({
+                'epic_key': epic_key,
+                'epic_name': epic_name,
+                'total_points': total_points,
+                'completed_points': completed_points,
+                'remaining_points': remaining_points,
+                'progress_pct': (completed_points / total_points * 100) if total_points > 0 else 0,
+                'colour': epic_colour
+            })
+
+    # Sort by progress percentage (least progress first) to highlight blocked epics
+    epic_data.sort(key=lambda e: e['progress_pct'])
+
+    # Calculate parallel completion dates
+    from datetime import datetime, timedelta
+    if velocity_data:
+        last_sprint_end = datetime.fromisoformat(velocity_data[-1]['end_date'].replace('Z', '+00:00'))
+    else:
+        last_sprint_end = datetime.now()
+
+    project_start = last_sprint_end + timedelta(days=1)
+    velocity_per_person = avg_velocity / team_size if team_size > 0 else avg_velocity
+
+    tracks = [project_start for _ in range(team_size)]
+
+    for epic in epic_data:
+        sprints_needed = epic['remaining_points'] / velocity_per_person if velocity_per_person > 0 else 0
+        days_needed = int(sprints_needed * 7)
+        if days_needed < 1:
+            days_needed = 1
+
+        earliest_track_idx = min(range(len(tracks)), key=lambda i: tracks[i])
+        start_date = tracks[earliest_track_idx]
+        end_date = start_date + timedelta(days=days_needed)
+
+        epic['est_completion'] = end_date.strftime('%Y-%m-%d')
+        epic['assigned_dev'] = earliest_track_idx + 1
+
+        tracks[earliest_track_idx] = end_date + timedelta(days=1)
+
+    # Calculate totals
+    total_remaining = sum(e['remaining_points'] for e in epic_data)
+    final_completion = max(tracks).strftime('%Y-%m-%d') if epic_data else 'N/A'
+    sprints_remaining = int(total_remaining / avg_velocity) if avg_velocity > 0 else 0
+
+    # Create PDF
+    print(f"Generating PDF for {project_key.upper()}...")
+    output_file = f'../public/{project_key}.pdf'
+
+    doc = SimpleDocTemplate(
+        output_file,
+        pagesize=landscape(A4),
+        rightMargin=30*mm,
+        leftMargin=30*mm,
+        topMargin=25*mm,
+        bottomMargin=25*mm
+    )
+
+    story = []
+    styles = getSampleStyleSheet()
+
+    # Title
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#667eea'),
+        spaceAfter=30,
+        alignment=TA_CENTER
+    )
+    story.append(Paragraph(f"{project_key.upper()} Planning Report", title_style))
+    story.append(Spacer(1, 10*mm))
+
+    # Metrics summary table
+    metrics_data = [
+        ['Team Size', 'Average Velocity', 'Remaining Work', 'Projected Completion'],
+        [
+            f'{team_size} developers',
+            f'{avg_velocity:.0f} pts/sprint\n± {velocity_stats["std_dev"]:.0f}',
+            f'{total_remaining:.0f} points\n{len(epic_data)} epics',
+            f'{final_completion}\n~{sprints_remaining} sprints'
+        ]
+    ]
+
+    metrics_table = Table(metrics_data, colWidths=[50*mm, 50*mm, 50*mm, 60*mm])
+    metrics_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#667eea')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8f9fa')),
+        ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+
+    story.append(metrics_table)
+    story.append(Spacer(1, 15*mm))
+
+    # Gantt chart (matching HTML order)
+    gantt_path = f'../public/{project_key}_gantt.png'
+    if os.path.exists(gantt_path):
+        # Use keepAspectRatio to fit within page
+        img = Image(gantt_path, width=230*mm, height=130*mm, kind='proportional')
+        story.append(img)
+    else:
+        story.append(Paragraph("Gantt chart not found. Run generate_gantt.py first.", styles['Normal']))
+
+    story.append(Spacer(1, 10*mm))
+
+    # Sprint velocity trend
+    velocity_chart_buf = create_velocity_chart(velocity_data, velocity_stats)
+    if velocity_chart_buf:
+        velocity_img = Image(velocity_chart_buf, width=220*mm, height=90*mm)
+        story.append(velocity_img)
+
+    story.append(Spacer(1, 5*mm))
+    story.append(Paragraph(
+        f"Showing {len(velocity_data)} most recent sprints. "
+        f"Latest sprint: {velocity_data[-1]['completed_points']:.0f} points. "
+        f"Coefficient of variation: {(velocity_stats['std_dev']/velocity_stats['mean']*100):.0f}%",
+        styles['Normal']
+    ))
+
+    # Add page break before Epic Breakdown
+    story.append(PageBreak())
+
+    # Epic breakdown table
+    epic_table_data = [
+        ['Epic', 'Name', 'Remaining', 'Completed', 'Total', 'Progress']
+    ]
+
+    # Build table and collect colour styling
+    epic_table_styles = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#667eea')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('ALIGN', (2, 1), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+    ]
+
+    for idx, epic in enumerate(epic_data):
+        row_idx = idx + 1  # +1 because of header row
+        epic_table_data.append([
+            epic['epic_key'],
+            epic['epic_name'][:40] + '...' if len(epic['epic_name']) > 40 else epic['epic_name'],
+            f"{epic['remaining_points']:.0f}",
+            f"{epic['completed_points']:.0f}",
+            f"{epic['total_points']:.0f}",
+            f"{epic['progress_pct']:.0f}%"
+        ])
+
+        # Add colour bar to left of epic key
+        epic_colour = get_jira_colour_hex(epic['colour'])
+        epic_table_styles.append(('BACKGROUND', (0, row_idx), (0, row_idx), epic_colour))
+        epic_table_styles.append(('TEXTCOLOR', (0, row_idx), (0, row_idx), colors.white))
+
+    epic_table = Table(epic_table_data, colWidths=[25*mm, 85*mm, 20*mm, 20*mm, 20*mm, 20*mm])
+    epic_table.setStyle(TableStyle(epic_table_styles))
+
+    story.append(epic_table)
+
+    # Build PDF
+    doc.build(story, onFirstPage=create_header_footer, onLaterPages=create_header_footer)
+
+    print(f"✓ PDF report saved: {output_file}")
+    return output_file
+
+
+def main():
+    """Generate PDF reports for all configured projects."""
+    load_dotenv()
+
+    required_vars = ['JIRA_URL', 'JIRA_EMAIL', 'JIRA_API_TOKEN']
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+
+    if missing_vars:
+        print(f"Error: Missing required environment variables: {', '.join(missing_vars)}")
+        sys.exit(1)
+
+    print("Connecting to Jira...")
+    client = JiraClient(
+        url=os.getenv('JIRA_URL'),
+        email=os.getenv('JIRA_EMAIL'),
+        api_token=os.getenv('JIRA_API_TOKEN')
+    )
+    jira_url = os.getenv('JIRA_URL', '').rstrip('/')
+
+    # Find all project configurations
+    projects = []
+    i = 1
+    while True:
+        project_key = os.getenv(f'JIRA_PROJECT_KEY_{i}')
+        board_id = os.getenv(f'JIRA_BOARD_ID_{i}')
+
+        if not project_key or not board_id:
+            break
+
+        team_size = int(os.getenv(f'TEAM_SIZE_{i}', '5'))
+        projects.append({
+            'key': project_key.lower(),
+            'board_id': int(board_id),
+            'team_size': team_size
+        })
+        i += 1
+
+    if not projects:
+        project_key = os.getenv('JIRA_PROJECT_KEY')
+        board_id = os.getenv('JIRA_BOARD_ID')
+
+        if not project_key or not board_id:
+            print("Error: No project configuration found")
+            sys.exit(1)
+
+        team_size = int(os.getenv('TEAM_SIZE', '5'))
+        projects.append({
+            'key': project_key.lower(),
+            'board_id': int(board_id),
+            'team_size': team_size
+        })
+
+    print(f"\nFound {len(projects)} project(s) to process\n")
+
+    # Generate PDF for each project
+    output_files = []
+    for project in projects:
+        print(f"{'='*60}")
+        print(f"Processing project: {project['key'].upper()}")
+        print(f"{'='*60}")
+
+        output_file = generate_project_pdf(
+            client,
+            project['key'],
+            project['board_id'],
+            project['team_size'],
+            jira_url
+        )
+        output_files.append(output_file)
+        print()
+
+    print(f"\n{'='*60}")
+    print(f"✓ All PDF reports generated successfully")
+    print(f"{'='*60}")
+    for output_file in output_files:
+        print(f"  {output_file}")
+
+
+if __name__ == '__main__':
+    main()

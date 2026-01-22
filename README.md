@@ -1,182 +1,199 @@
-# Jira Planning Report Generator
+# Jira Planning Tools
 
-Automated tool to extract story points, calculate velocity trends, and project epic timelines from Jira. Generates Excel reports with charts and Gantt-style visualisations to replace manual planning spreadsheets.
+Automated Jira analysis generating velocity trends, epic timelines, and Gantt charts. Supports multiple projects and automatically detects story point custom fields.
+
+## Quick Start
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+# Edit .env with your Jira credentials
+make
+```
 
 ## Features
 
-- **Velocity Analysis**: Historical sprint velocity with statistical metrics (mean, median, standard deviation)
-- **Epic Timeline Projection**: Forecasts when epics will complete based on team capacity
-- **Capacity Planning**: Shows future sprint allocations and available capacity
-- **Excel Output**: Formatted spreadsheets with charts and colour-coded status indicators
-
-## Prerequisites
-
-- Python 3.9 or higher
-- Jira account with API access
-- Board ID from your Jira project
+- **Velocity Tracking**: Historical sprint velocity with 6-month lookback window
+- **Epic Planning**: Remaining work breakdown with child task details
+- **Timeline Projections**: Gantt charts showing sequential epic completion dates
+- **Multi-Project Support**: Configure multiple projects with numbered environment variables
+- **Flexible Story Points**: Automatically detects story point fields (customfield_10016, 10026, 10031)
+- **No Epic Tracking**: Identifies and tracks stories without parent epics
 
 ## Setup
 
-### 1. Install Dependencies
+### 1. Get Jira API Token
 
-```bash
-pip install -r requirements.txt
-```
+1. Visit <https://id.atlassian.com/manage-profile/security/api-tokens>
+2. Click "Create API token"
+3. Copy the token
 
-### 2. Configure Jira API Access
+### 2. Find Board ID
 
-Create a `.env` file by copying the example:
+Look at your Jira board URL: `https://your-domain.atlassian.net/.../boards/123`
 
-```bash
-cp .env.example .env
-```
+The number `123` is your Board ID.
 
-Edit `.env` with your settings:
+### 3. Configure Environment
+
+Use numbered suffixes (`_1`, `_2`, etc.) for each project:
+
+#### Single Project
 
 ```env
-# Get these from your Jira instance
 JIRA_URL=https://your-domain.atlassian.net
 JIRA_EMAIL=your-email@example.com
-JIRA_API_TOKEN=your_api_token_here
+JIRA_API_TOKEN=your_token_here
 
-# Find your board ID in the URL when viewing your board
-# Example: https://your-domain.atlassian.net/jira/software/projects/PROJ/boards/123
-JIRA_BOARD_ID=123
-
-# Optional configuration
-NUM_HISTORICAL_SPRINTS=6      # Number of past sprints to analyse
-NUM_FUTURE_SPRINTS=10         # Number of future sprints to project
-CONFIDENCE_FACTOR=0.8         # Conservative multiplier for capacity (0.0-1.0)
+JIRA_PROJECT_KEY_1=PROJ
+JIRA_BOARD_ID_1=123
+TEAM_SIZE_1=4
+SPRINT_LENGTH_WEEKS_1=2
 ```
 
-### 3. Get Your Jira API Token
+#### Multiple Projects
 
-1. Go to <https://id.atlassian.com/manage-profile/security/api-tokens>
-2. Click "Create API token"
-3. Give it a name (e.g., "Planning Report Generator")
-4. Copy the token to your `.env` file
+```env
+JIRA_URL=https://your-domain.atlassian.net
+JIRA_EMAIL=your-email@example.com
+JIRA_API_TOKEN=your_token_here
 
-### 4. Find Your Board ID
+JIRA_PROJECT_KEY_1=PROJ1
+JIRA_BOARD_ID_1=123
+TEAM_SIZE_1=4
+SPRINT_LENGTH_WEEKS_1=2
 
-1. Open your Jira board in a browser
-2. Look at the URL: `https://your-domain.atlassian.net/jira/software/projects/PROJ/boards/123`
-3. The number at the end (`123`) is your Board ID
+JIRA_PROJECT_KEY_2=PROJ2
+JIRA_BOARD_ID_2=456
+TEAM_SIZE_2=3
+SPRINT_LENGTH_WEEKS_2=1
+
+# Add RESEND_API_KEY for email reports
+RESEND_API_KEY=re_xxxxx
+```
 
 ## Usage
 
-Run the report generator:
+```bash
+make              # Generate dashboard and Gantt chart for all projects
+make dashboard    # HTML dashboards only
+make gantt        # Gantt charts only
+make velocity     # Velocity chart PNG only
+make clean        # Remove all generated files
+make help         # Show all available commands
+```
+
+Outputs saved to `public/` directory.
+
+### Daily Email Reports
+
+Send PDF reports via email:
 
 ```bash
-python generate_report.py
+source venv/bin/activate
+python bin/send_daily_report.py your-email@example.com
 ```
 
-This will:
-1. Connect to Jira and fetch sprint data
-2. Calculate velocity metrics from historical sprints
-3. Project epic completion timelines
-4. Generate an Excel file: `jira_planning_report_YYYYMMDD_HHMMSS.xlsx`
+Set up automated daily reports with cron - see [CRON_SETUP.md](CRON_SETUP.md) for instructions.
 
-The Excel file contains four sheets:
+## Output Files
 
-- **Summary**: Key metrics overview and generation timestamp
-- **Velocity History**: Historical sprint data with velocity trend chart
-- **Epic Timeline**: Projected epic completion dates with work remaining chart
-- **Capacity Planning**: Future sprint allocations and epic assignments
+- `public/{project}.html` - Interactive dashboard with:
+  - Team size and average velocity
+  - Remaining work breakdown
+  - Projected completion date
+  - Embedded velocity trend chart
+  - Epic breakdown table (incomplete epics only)
+  - Epic timeline with child task details
+- `public/{project}_gantt.png` - Visual Gantt chart showing sequential epic timeline
+- `public/{project}_velocity_chart.png` - Standalone velocity history chart
 
-## Understanding the Output
+## Dashboard Features
 
-### Velocity Statistics
+### Metrics Summary
 
-- **Mean**: Average story points completed per sprint
-- **Standard Deviation**: Variability in velocity (lower is more predictable)
-- **Conservative Capacity**: Mean velocity × confidence factor (used for projections)
+- Team size
+- Average velocity (points/sprint ± std dev)
+- Total remaining work
+- Projected completion date
 
-### Epic Timeline
+### Epic Breakdown Table
 
-- **Scheduled**: Epic fits within planning horizon
-- **Beyond Horizon**: Epic extends beyond projected sprints (add more future sprints or reduce scope)
+- Shows only epics with remaining work
+- Progress percentage
+- Story points (remaining/completed/total)
+- Estimated completion date
 
-### Capacity Planning
+### Epic Timeline Overview
 
-Colour coding shows sprint utilisation:
+- Detailed child task listings
+- Tasks sorted by story points (largest first)
+- Only shows incomplete tasks
+- Clickable links to Jira tickets
 
-- 🟢 Green: < 70% utilised (capacity available)
-- 🟡 Yellow: 70-90% utilised (well-balanced)
-- 🔴 Red: > 90% utilised (overcommitted)
+### Special "No Epic" Section
 
-## Customisation
-
-### Story Points Field
-
-The default story points field is `customfield_10016`. If your Jira uses a different field:
-
-1. Find your field ID by inspecting an issue in the API:
-   `https://your-domain.atlassian.net/rest/api/3/issue/PROJ-123`
-2. Update [jira_client.py:98](jira_client.py#L98) with your field ID
-
-### Sprint Length
-
-The tool assumes 1-week sprints (configured for your workflow). To change this, modify [velocity_calculator.py:88](velocity_calculator.py#L88):
-
-```python
-sprint_end = sprint_start + timedelta(weeks=2)  # Change to 2 weeks
-```
-
-### Confidence Factor
-
-Adjust `CONFIDENCE_FACTOR` in `.env`:
-
-- `1.0`: Use full average velocity (optimistic)
-- `0.8`: Use 80% of average (recommended, accounts for variability)
-- `0.6`: Use 60% of average (conservative, high uncertainty)
+- Automatically tracks stories without parent epics
+- Helps identify unorganised work
 
 ## Troubleshooting
 
-### "No completed sprints found"
+### Identifying Story Point Fields
 
-- Ensure your board has closed sprints with story points
-- Check that `JIRA_BOARD_ID` is correct
-
-### "Missing required environment variables"
-
-- Verify `.env` file exists and contains all required fields
-- Check for typos in variable names
-
-### API Authentication Errors
-
-- Verify your API token is correct and not expired
-- Ensure your email matches your Jira account
-
-### Story Points Not Appearing
-
-- Different Jira instances use different custom field IDs for story points
-- Check your field ID and update `jira_client.py` accordingly
-
-## Automation
-
-### Scheduled Reports
-
-Create a cron job to generate reports automatically:
+Run the field inspector to identify which custom field contains story points:
 
 ```bash
-# Generate report every Monday at 9am
-0 9 * * 1 cd /path/to/jira && python generate_report.py
+source venv/bin/activate
+python bin/inspect_fields.py [board_id]
 ```
 
-### CI/CD Integration
+The tool checks these fields by default:
 
-Add to your pipeline to track planning metrics over time:
+- `customfield_10016` - Story Points
+- `customfield_10026` - Story point estimate
+- `customfield_10031` - Alternative story points field
 
-```yaml
-- name: Generate Jira Planning Report
-  run: |
-    pip install -r requirements.txt
-    python generate_report.py
-```
+### Velocity Appears Too Low
 
-## Contributing
+If velocity seems incorrect, verify story points are in the right custom field. Different Jira boards can use different custom field IDs.
 
-Suggestions and improvements welcome. This tool is designed to be extended with additional metrics and visualisations as needed.
+### Sprint Length
+
+Default is 1-week sprints. The tool uses this for:
+
+- Gantt chart timeline calculations
+- Sprint-to-date conversions
+
+Sprint length is hardcoded in [bin/velocity_calculator.py:119](bin/velocity_calculator.py#L119).
+
+### Completed Epics Still Showing
+
+The dashboard filters out epics where `remaining == 0`. If an epic still appears, it has incomplete child tasks.
+
+## Technical Details
+
+### Velocity Calculation
+
+- Uses last 6 months of completed sprints
+- Calculates mean, median, and standard deviation
+- Only counts story points from completed issues (status: done/closed/resolved)
+
+### Epic Timeline Projection
+
+- Lays out epics sequentially (not in parallel)
+- Uses average velocity for duration estimates
+- Sorts epics by remaining work (largest first)
+
+### Story Point Estimation Calibration
+
+Note: Story point estimates often take ~2x longer than intuitive time estimates due to overhead (meetings, code reviews, testing, debugging, etc.). This is normal and expected - velocity-based planning accounts for this automatically.
+
+## Debug Tools
+
+- `bin/inspect_fields.py [board_id]` - Show all custom fields in a sample issue
+- `bin/debug_sprint_details.py` - Show last 5 sprints with completion data
 
 ## Licence
 

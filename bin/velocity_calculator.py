@@ -1,6 +1,6 @@
 """Calculate team velocity and capacity from historical sprint data."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 import statistics
 
@@ -33,8 +33,14 @@ class VelocityCalculator:
             'completion_rate': completed_points / total_points if total_points > 0 else 0.0
         }
 
-    def get_historical_velocity(self, board_id: int, num_sprints: int = 6) -> list[dict[str, Any]]:
-        """Get velocity data for the last N completed sprints."""
+    def get_historical_velocity(self, board_id: int, num_sprints: int = 6, months: int = None) -> list[dict[str, Any]]:
+        """Get velocity data for the last N completed sprints or last M months.
+
+        Args:
+            board_id: Jira board ID
+            num_sprints: Number of sprints to fetch (ignored if months is set)
+            months: If set, fetch sprints from last N months instead of using num_sprints
+        """
         sprints = self.client.get_board_sprints(board_id)
 
         # Filter to completed sprints only and sort by end date
@@ -47,8 +53,20 @@ class VelocityCalculator:
             reverse=True
         )
 
+        # Filter by date if months specified
+        if months is not None:
+            from datetime import timedelta
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=months * 30)
+            completed_sprints = [
+                s for s in completed_sprints
+                if datetime.fromisoformat(s['endDate'].replace('Z', '+00:00')) >= cutoff_date
+            ]
+        else:
+            # Use num_sprints limit
+            completed_sprints = completed_sprints[:num_sprints]
+
         velocity_data = []
-        for sprint in completed_sprints[:num_sprints]:
+        for sprint in completed_sprints:
             issues = self.client.get_sprint_issues(sprint['id'])
             velocity_data.append(self.calculate_sprint_velocity(sprint, issues))
 

@@ -54,7 +54,7 @@ class JiraClient:
                 params={
                     'startAt': start_at,
                     'maxResults': max_results,
-                    'fields': 'summary,status,customfield_10016,issuetype,created,resolutiondate'
+                    'fields': 'summary,status,customfield_10016,customfield_10026,customfield_10031,issuetype,created,resolutiondate'
                 }
             )
             issues.extend(data.get('issues', []))
@@ -84,21 +84,27 @@ class JiraClient:
 
         return epics
 
-    def get_epic_issues(self, epic_id: int) -> list[dict[str, Any]]:
-        """Get all issues in an epic."""
+    def get_epic_issues(self, epic_key: str) -> list[dict[str, Any]]:
+        """Get all issues in an epic using JQL search."""
         issues = []
         start_at = 0
         max_results = 50
 
         while True:
-            data = self._get(
-                f'/epic/{epic_id}/issue',
+            response = requests.get(
+                f'{self.url}/rest/api/3/search',
+                auth=self.auth,
+                headers=self.headers,
                 params={
+                    'jql': f'parent = {epic_key}',
                     'startAt': start_at,
                     'maxResults': max_results,
                     'fields': 'summary,status,customfield_10016,issuetype'
                 }
             )
+            response.raise_for_status()
+            data = response.json()
+
             issues.extend(data.get('issues', []))
 
             if start_at + max_results >= data.get('total', 0):
@@ -108,10 +114,23 @@ class JiraClient:
         return issues
 
     def get_story_points(self, issue: dict[str, Any]) -> float:
-        """Extract story points from an issue (customfield_10016 is typical for story points)."""
+        """Extract story points from an issue.
+
+        Checks multiple common story point fields:
+        - customfield_10016: Story Points (CIT project)
+        - customfield_10026: Story point estimate
+        - customfield_10031: Story Points (IVEMCS project)
+        Uses whichever field is populated.
+        """
         fields = issue.get('fields', {})
-        story_points = fields.get('customfield_10016')
-        return float(story_points) if story_points else 0.0
+
+        # Try common story point fields in order
+        for field_id in ['customfield_10016', 'customfield_10026', 'customfield_10031']:
+            story_points = fields.get(field_id)
+            if story_points:
+                return float(story_points)
+
+        return 0.0
 
     def is_issue_completed(self, issue: dict[str, Any]) -> bool:
         """Check if an issue is completed based on status."""

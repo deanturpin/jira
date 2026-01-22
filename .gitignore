@@ -12,9 +12,8 @@ venv/
 env/
 ENV/
 
-# Generated reports
-*.xlsx
-jira_planning_report_*.xlsx
+# Generated reports and data
+public/
 
 # IDE
 .vscode/

@@ -38,6 +38,7 @@ def main():
     epic_planner = EpicPlanner(client, velocity_calc)
 
     board_id = int(os.getenv('JIRA_BOARD_ID'))
+    project_key = os.getenv('JIRA_PROJECT_KEY', 'project').lower()
     num_historical_sprints = int(os.getenv('NUM_HISTORICAL_SPRINTS', '6'))
     num_future_sprints = int(os.getenv('NUM_FUTURE_SPRINTS', '10'))
     confidence_factor = float(os.getenv('CONFIDENCE_FACTOR', '0.8'))
@@ -65,26 +66,37 @@ def main():
 
     # Fetch and plan epics
     print("Fetching epic data...")
-    epics = epic_planner.get_epic_data(board_id)
-    print(f"Found {len(epics)} active epics")
+    try:
+        epics = epic_planner.get_epic_data(board_id)
+        print(f"Found {len(epics)} active epics")
 
-    total_remaining = sum(e['remaining_points'] for e in epics)
-    print(f"Total remaining work: {total_remaining:.1f} story points")
+        total_remaining = sum(e['remaining_points'] for e in epics)
+        print(f"Total remaining work: {total_remaining:.1f} story points")
 
-    print("Calculating epic timeline...")
-    timeline, sprint_capacity = epic_planner.calculate_epic_timeline(epics, sprint_projections)
+        print("Calculating epic timeline...")
+        timeline, sprint_capacity = epic_planner.calculate_epic_timeline(epics, sprint_projections)
+        has_epics = True
+    except Exception as e:
+        print(f"Warning: Could not fetch epic data: {e}")
+        print("Continuing with velocity analysis only...")
+        epics = []
+        timeline = []
+        sprint_capacity = sprint_projections
+        has_epics = False
 
     # Generate Excel report
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_file = f"jira_planning_report_{timestamp}.xlsx"
+    output_file = f"../public/{project_key}_planning_report_{timestamp}.xlsx"
 
     print(f"Generating Excel report: {output_file}")
     excel = ExcelGenerator(output_file)
 
     excel.add_summary_sheet(velocity_data, velocity_stats)
     excel.add_velocity_sheet(velocity_data, velocity_stats)
-    excel.add_epic_timeline_sheet(timeline, sprint_capacity)
-    excel.add_capacity_planning_sheet(sprint_projections, sprint_capacity)
+
+    if has_epics:
+        excel.add_epic_timeline_sheet(timeline, sprint_capacity)
+        excel.add_capacity_planning_sheet(sprint_projections, sprint_capacity)
 
     saved_file = excel.save()
     print(f"\nReport generated successfully: {saved_file}")
@@ -93,14 +105,16 @@ def main():
     print("\n=== Summary ===")
     print(f"Historical velocity: {velocity_stats['mean']:.1f} ± {velocity_stats['std_dev']:.1f} points/sprint")
     print(f"Conservative capacity: {velocity_stats['mean'] * confidence_factor:.1f} points/sprint")
-    print(f"\nEpics scheduled:")
-    for epic in timeline:
-        if epic['status'] == 'scheduled':
-            print(f"  - {epic['epic_key']}: Sprints {epic['start_sprint']}-{epic['end_sprint']} ({epic['remaining_points']:.0f} pts)")
 
-    beyond_horizon = [e for e in timeline if e['status'] == 'beyond_horizon']
-    if beyond_horizon:
-        print(f"\nWarning: {len(beyond_horizon)} epic(s) extend beyond planning horizon")
+    if has_epics:
+        print(f"\nEpics scheduled:")
+        for epic in timeline:
+            if epic['status'] == 'scheduled':
+                print(f"  - {epic['epic_key']}: Sprints {epic['start_sprint']}-{epic['end_sprint']} ({epic['remaining_points']:.0f} pts)")
+
+        beyond_horizon = [e for e in timeline if e['status'] == 'beyond_horizon']
+        if beyond_horizon:
+            print(f"\nWarning: {len(beyond_horizon)} epic(s) extend beyond planning horizon")
 
     print(f"\nOpen the Excel file for detailed charts and timeline visualisation.")
 
