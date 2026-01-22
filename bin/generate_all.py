@@ -41,19 +41,19 @@ def main():
 
     # Check for numbered project configs
     i = 1
-    while True:
+    while i <= 10:  # Support up to 10 projects
         project_key = os.getenv(f'JIRA_PROJECT_KEY_{i}')
         board_id = os.getenv(f'JIRA_BOARD_ID_{i}')
 
-        if not project_key or not board_id:
-            break
+        # Skip if project key or board ID is empty/null
+        if project_key and board_id:
+            team_size = int(os.getenv(f'TEAM_SIZE_{i}', '5'))
+            projects.append({
+                'key': project_key.lower(),
+                'board_id': int(board_id),
+                'team_size': team_size
+            })
 
-        team_size = int(os.getenv(f'TEAM_SIZE_{i}', '5'))
-        projects.append({
-            'key': project_key.lower(),
-            'board_id': int(board_id),
-            'team_size': team_size
-        })
         i += 1
 
     # Fallback to non-numbered vars if no numbered ones found
