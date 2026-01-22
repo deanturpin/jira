@@ -36,7 +36,14 @@ Look at your Jira board URL: `https://your-domain.atlassian.net/.../boards/123`
 
 The number `123` is your Board ID.
 
-### 3. Configure Environment
+### 3. Get Resend API Key (for email reports)
+
+1. Visit <https://resend.com/api-keys>
+2. Sign up or log in
+3. Click "Create API Key"
+4. Copy the key (starts with `re_`)
+
+### 4. Configure Environment
 
 Use numbered suffixes (`_1`, `_2`, etc.) for each project:
 
