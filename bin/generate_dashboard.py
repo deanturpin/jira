@@ -364,18 +364,6 @@ def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_dat
                 Sequential timeline showing when each epic could complete. Epics are laid out end-to-end based on remaining story points and average velocity.
             </p>
         </div>
-
-        <div class="section">
-            <h2>📊 Sprint Velocity Trend</h2>
-            <div class="chart-container">
-                <img src="data:image/png;base64,{velocity_chart}" alt="Velocity Chart">
-            </div>
-            <p style="color: #666; font-size: 14px; margin-top: 15px;">
-                Showing {len(velocity_data)} most recent sprints.
-                Latest sprint: {velocity_data[-1]['completed_points']:.0f} points.
-                Coefficient of variation: {(velocity_stats['std_dev']/velocity_stats['mean']*100):.0f}%
-            </p>
-        </div>
 """
 
     if epic_chart:
@@ -540,7 +528,19 @@ def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_dat
             </div>
 """
 
-    html += """
+    html += f"""
+        </div>
+
+        <div class="section">
+            <h2>📊 Sprint Velocity Trend</h2>
+            <div class="chart-container">
+                <img src="data:image/png;base64,{velocity_chart}" alt="Velocity Chart">
+            </div>
+            <p style="color: #666; font-size: 14px; margin-top: 15px;">
+                Showing {len(velocity_data)} most recent sprints.
+                Latest sprint: {velocity_data[-1]['completed_points']:.0f} points.
+                Coefficient of variation: {(velocity_stats['std_dev']/velocity_stats['mean']*100):.0f}%
+            </p>
         </div>
 
         <div class="footer">
@@ -572,39 +572,48 @@ def generate_project_dashboard(client, project_key, board_id, team_size, jira_ur
     auth = (os.getenv('JIRA_EMAIL'), os.getenv('JIRA_API_TOKEN'))
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
 
-    # Fetch all epics in the project using JQL instead of board API
-    # This shows all project epics regardless of board association
-    epic_response = requests.post(
+    # Fetch epics from board API (has colour info)
+    board_epic_response = requests.get(
+        f'{url}/rest/agile/1.0/board/{board_id}/epic',
+        auth=auth,
+        headers={'Accept': 'application/json'},
+        params={'maxResults': 200}
+    )
+
+    board_epics = board_epic_response.json().get('values', []) if board_epic_response.status_code == 200 else []
+    board_epic_keys = {e['key'] for e in board_epics}
+
+    # Fetch all project epics via JQL to catch any not on board
+    jql_response = requests.post(
         f'{url}/rest/api/3/search/jql',
         auth=auth,
         headers=headers,
         json={
             'jql': f'project = {project_key.upper()} AND type = Epic',
             'maxResults': 200,
-            'fields': ['summary', 'status', 'customfield_10014']  # customfield_10014 is Epic Color
+            'fields': ['summary', 'status']
         }
     )
 
-    if epic_response.status_code != 200:
-        print(f"  Error fetching epics: {epic_response.status_code}")
-        return []
+    # Combine: board epics have colour, JQL epics fill gaps
+    epics = list(board_epics)  # Start with board epics (have colours)
 
-    epic_issues = epic_response.json().get('issues', [])
-    print(f"  Found {len(epic_issues)} epics in project {project_key.upper()}")
+    if jql_response.status_code == 200:
+        jql_epics = jql_response.json().get('issues', [])
+        # Add epics from JQL that aren't in board (won't have colour)
+        for issue in jql_epics:
+            if issue['key'] not in board_epic_keys:
+                status_name = issue['fields'].get('status', {}).get('name', '').lower()
+                is_done = status_name in ['done', 'closed', 'resolved']
+                epics.append({
+                    'key': issue['key'],
+                    'summary': issue['fields'].get('summary', 'Unnamed'),
+                    'name': issue['fields'].get('summary', 'Unnamed'),
+                    'done': is_done,
+                    'color': {'key': 'color_4'}  # default colour for non-board epics
+                })
 
-    # Convert to format similar to board API response
-    epics = []
-    for issue in epic_issues:
-        status_name = issue['fields'].get('status', {}).get('name', '').lower()
-        is_done = status_name in ['done', 'closed', 'resolved']
-
-        epics.append({
-            'key': issue['key'],
-            'summary': issue['fields'].get('summary', 'Unnamed'),
-            'name': issue['fields'].get('summary', 'Unnamed'),
-            'done': is_done,
-            'color': {'key': issue['fields'].get('customfield_10014', 'color_4')}
-        })
+    print(f"  Found {len(epics)} total epics ({len(board_epics)} from board, {len(epics) - len(board_epics)} from project)")
 
     active_epics = [e for e in epics if not e.get('done', False)]
     print(f"  Active epics: {len(active_epics)}")

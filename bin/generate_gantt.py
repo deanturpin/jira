@@ -16,6 +16,27 @@ from jira_client import JiraClient
 from velocity_calculator import VelocityCalculator
 
 
+def get_jira_colour_hex(colour_key):
+    """Map Jira colour keys to actual Jira hex values."""
+    colour_map = {
+        'color_1': '#8d542e',   # Brown
+        'color_2': '#ff8b00',   # Orange
+        'color_3': '#ffab01',   # Light orange
+        'color_4': '#0052cc',   # Blue (default)
+        'color_5': '#505f79',   # Grey-blue
+        'color_6': '#5fa321',   # Green
+        'color_7': '#cd4288',   # Pink/Magenta
+        'color_8': '#5143aa',   # Purple
+        'color_9': '#ff8f73',   # Coral/Salmon
+        'color_10': '#2584ff',  # Bright blue
+        'color_11': '#018da6',  # Teal
+        'color_12': '#6b778c',  # Grey
+        'color_13': '#03875a',  # Dark green
+        'color_14': '#de350a',  # Red/Orange-red
+    }
+    return colour_map.get(colour_key, colour_map['color_4'])
+
+
 def create_gantt_chart(epic_timeline, velocity_stats, project_key, team_size):
     """Create Gantt chart showing epic timeline with parallel swim lanes grouped by developer."""
     if not epic_timeline:
@@ -47,9 +68,10 @@ def create_gantt_chart(epic_timeline, velocity_stats, project_key, team_size):
         end_date = datetime.fromisoformat(epic['end_date'])
         duration = (end_date - start_date).days
 
-        # Colour based on track number
+        # Use epic's actual colour from Jira
         track = epic.get('track', 0)
-        colour = track_colours[track % len(track_colours)]
+        epic_colour_key = epic.get('colour', 'color_4')
+        colour = get_jira_colour_hex(epic_colour_key)
 
         # Add separator line between tracks
         if track != current_track and current_track >= 0:
@@ -134,14 +156,47 @@ def generate_project_gantt(client, project_key, board_id, team_size):
     auth = (os.getenv('JIRA_EMAIL'), os.getenv('JIRA_API_TOKEN'))
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
 
-    epic_response = requests.get(
+    # Fetch epics from board API (has colour info)
+    board_epic_response = requests.get(
         f'{url}/rest/agile/1.0/board/{board_id}/epic',
         auth=auth,
         headers={'Accept': 'application/json'},
-        params={'maxResults': 100}
+        params={'maxResults': 200}
     )
 
-    epics = epic_response.json().get('values', [])
+    board_epics = board_epic_response.json().get('values', []) if board_epic_response.status_code == 200 else []
+    board_epic_keys = {e['key'] for e in board_epics}
+
+    # Fetch all project epics via JQL to catch any not on board
+    jql_response = requests.post(
+        f'{url}/rest/api/3/search/jql',
+        auth=auth,
+        headers=headers,
+        json={
+            'jql': f'project = {project_key.upper()} AND type = Epic',
+            'maxResults': 200,
+            'fields': ['summary', 'status']
+        }
+    )
+
+    # Combine: board epics have colour, JQL epics fill gaps
+    epics = list(board_epics)  # Start with board epics (have colours)
+
+    if jql_response.status_code == 200:
+        jql_epics = jql_response.json().get('issues', [])
+        # Add epics from JQL that aren't in board (won't have colour)
+        for issue in jql_epics:
+            if issue['key'] not in board_epic_keys:
+                status_name = issue['fields'].get('status', {}).get('name', '').lower()
+                is_done = status_name in ['done', 'closed', 'resolved']
+                epics.append({
+                    'key': issue['key'],
+                    'summary': issue['fields'].get('summary', 'Unnamed'),
+                    'name': issue['fields'].get('summary', 'Unnamed'),
+                    'done': is_done,
+                    'color': {'key': 'color_4'}  # default colour for non-board epics
+                })
+
     active_epics = [e for e in epics if not e.get('done', False)]
 
     # Get remaining points for each epic
@@ -149,6 +204,7 @@ def generate_project_gantt(client, project_key, board_id, team_size):
     for epic in active_epics:
         epic_key = epic['key']
         epic_name = epic.get('summary', epic.get('name', 'Unnamed'))
+        epic_colour = epic.get('color', {}).get('key', 'color_4')
 
         issue_response = requests.post(
             f'{url}/rest/api/3/search/jql',
@@ -180,7 +236,8 @@ def generate_project_gantt(client, project_key, board_id, team_size):
             epic_data.append({
                 'epic_key': epic_key,
                 'epic_name': epic_name,
-                'remaining_points': remaining_points
+                'remaining_points': remaining_points,
+                'colour': epic_colour
             })
 
     # Sort by remaining points (largest first)
@@ -225,7 +282,8 @@ def generate_project_gantt(client, project_key, board_id, team_size):
             'end_date': end_date.isoformat(),
             'duration_days': days_needed,
             'sprints': sprints_needed,
-            'track': earliest_track_idx
+            'track': earliest_track_idx,
+            'colour': epic['colour']
         })
 
         # Update track end date

@@ -118,40 +118,50 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url):
     auth = (os.getenv('JIRA_EMAIL'), os.getenv('JIRA_API_TOKEN'))
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
 
-    # Fetch all epics in the project using JQL instead of board API
-    # This shows all project epics regardless of board association
-    epic_response = requests.post(
+    # Fetch epics from board API (has colour info)
+    board_epic_response = requests.get(
+        f'{url}/rest/agile/1.0/board/{board_id}/epic',
+        auth=auth,
+        headers={'Accept': 'application/json'},
+        params={'maxResults': 200}
+    )
+
+    board_epics = board_epic_response.json().get('values', []) if board_epic_response.status_code == 200 else []
+    board_epic_keys = {e['key'] for e in board_epics}
+
+    # Fetch all project epics via JQL to catch any not on board
+    jql_response = requests.post(
         f'{url}/rest/api/3/search/jql',
         auth=auth,
         headers=headers,
         json={
             'jql': f'project = {project_key.upper()} AND type = Epic',
             'maxResults': 200,
-            'fields': ['summary', 'status', 'customfield_10014']
+            'fields': ['summary', 'status']
         }
     )
 
-    if epic_response.status_code != 200:
-        print(f"  Error fetching epics: {epic_response.status_code}")
-        epic_data = []
-    else:
-        epic_issues = epic_response.json().get('issues', [])
+    # Combine: board epics have colour, JQL epics fill gaps
+    epics = list(board_epics)  # Start with board epics (have colours)
 
-        # Convert to format similar to board API response
-        epics = []
-        for issue in epic_issues:
-            status_name = issue['fields'].get('status', {}).get('name', '').lower()
-            is_done = status_name in ['done', 'closed', 'resolved']
+    if jql_response.status_code == 200:
+        jql_epics = jql_response.json().get('issues', [])
+        # Add epics from JQL that aren't in board (won't have colour)
+        for issue in jql_epics:
+            if issue['key'] not in board_epic_keys:
+                status_name = issue['fields'].get('status', {}).get('name', '').lower()
+                is_done = status_name in ['done', 'closed', 'resolved']
+                epics.append({
+                    'key': issue['key'],
+                    'summary': issue['fields'].get('summary', 'Unnamed'),
+                    'name': issue['fields'].get('summary', 'Unnamed'),
+                    'done': is_done,
+                    'color': {'key': 'color_4'}  # default colour for non-board epics
+                })
 
-            epics.append({
-                'key': issue['key'],
-                'summary': issue['fields'].get('summary', 'Unnamed'),
-                'name': issue['fields'].get('summary', 'Unnamed'),
-                'done': is_done,
-                'color': {'key': issue['fields'].get('customfield_10014', 'color_4')}
-            })
+    active_epics = [e for e in epics if not e.get('done', False)]
 
-        active_epics = [e for e in epics if not e.get('done', False)]
+    if active_epics:
 
         # Get remaining points for each epic
         epic_data = []
