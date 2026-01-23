@@ -84,14 +84,17 @@ Outputs saved to `public/` directory.
 
 ### Daily Email Reports
 
-Send PDF reports via email:
+Generate and send PDF reports via email:
 
 ```bash
+make                                                   # Generate reports first
 source venv/bin/activate
-python bin/send_daily_report.py your-email@example.com
+python bin/send_daily_report.py your-email@example.com  # Send existing PDFs
 ```
 
-Set up automated daily reports with cron - see [CRON_SETUP.md](CRON_SETUP.md) for instructions.
+Note: `send_daily_report.py` only sends existing PDFs from `public/`. Run `make` first to generate them.
+
+Set up automated daily reports with cron - see [CRON_SETUP.md](CRON_SETUP.md) for instructions (handles both generation and sending).
 
 ## Output Files
 
