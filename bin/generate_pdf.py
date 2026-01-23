@@ -118,62 +118,87 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url):
     auth = (os.getenv('JIRA_EMAIL'), os.getenv('JIRA_API_TOKEN'))
     headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
 
-    epic_response = requests.get(
-        f'{url}/rest/agile/1.0/board/{board_id}/epic',
+    # Fetch all epics in the project using JQL instead of board API
+    # This shows all project epics regardless of board association
+    epic_response = requests.post(
+        f'{url}/rest/api/3/search/jql',
         auth=auth,
-        headers={'Accept': 'application/json'},
-        params={'maxResults': 100}
+        headers=headers,
+        json={
+            'jql': f'project = {project_key.upper()} AND type = Epic',
+            'maxResults': 200,
+            'fields': ['summary', 'status', 'customfield_10014']
+        }
     )
 
-    epics = epic_response.json().get('values', [])
-    active_epics = [e for e in epics if not e.get('done', False)]
+    if epic_response.status_code != 200:
+        print(f"  Error fetching epics: {epic_response.status_code}")
+        epic_data = []
+    else:
+        epic_issues = epic_response.json().get('issues', [])
 
-    # Get remaining points for each epic
-    epic_data = []
-    for epic in active_epics:
-        epic_key = epic['key']
-        epic_name = epic.get('summary', epic.get('name', 'Unnamed'))
-        epic_colour = epic.get('color', {}).get('key', 'color_4')  # Default to blue if no colour set
+        # Convert to format similar to board API response
+        epics = []
+        for issue in epic_issues:
+            status_name = issue['fields'].get('status', {}).get('name', '').lower()
+            is_done = status_name in ['done', 'closed', 'resolved']
 
-        issue_response = requests.post(
-            f'{url}/rest/api/3/search/jql',
-            auth=auth,
-            headers=headers,
-            json={
-                'jql': f'parent = {epic_key}',
-                'maxResults': 200,
-                'fields': ['customfield_10016', 'customfield_10026', 'customfield_10031', 'status']
-            }
-        )
-
-        if issue_response.status_code != 200:
-            continue
-
-        issues = issue_response.json().get('issues', [])
-
-        total_points = 0.0
-        completed_points = 0.0
-        for issue in issues:
-            points = issue['fields'].get('customfield_10016') or issue['fields'].get('customfield_10026') or issue['fields'].get('customfield_10031')
-            points = float(points) if points else 0.0
-            total_points += points
-
-            status = issue['fields'].get('status', {}).get('name', '').lower()
-            if status in ['done', 'closed', 'resolved']:
-                completed_points += points
-
-        remaining_points = total_points - completed_points
-
-        if remaining_points > 0:
-            epic_data.append({
-                'epic_key': epic_key,
-                'epic_name': epic_name,
-                'total_points': total_points,
-                'completed_points': completed_points,
-                'remaining_points': remaining_points,
-                'progress_pct': (completed_points / total_points * 100) if total_points > 0 else 0,
-                'colour': epic_colour
+            epics.append({
+                'key': issue['key'],
+                'summary': issue['fields'].get('summary', 'Unnamed'),
+                'name': issue['fields'].get('summary', 'Unnamed'),
+                'done': is_done,
+                'color': {'key': issue['fields'].get('customfield_10014', 'color_4')}
             })
+
+        active_epics = [e for e in epics if not e.get('done', False)]
+
+        # Get remaining points for each epic
+        epic_data = []
+        for epic in active_epics:
+            epic_key = epic['key']
+            epic_name = epic.get('summary', epic.get('name', 'Unnamed'))
+            epic_colour = epic.get('color', {}).get('key', 'color_4')
+
+            issue_response = requests.post(
+                f'{url}/rest/api/3/search/jql',
+                auth=auth,
+                headers=headers,
+                json={
+                    'jql': f'parent = {epic_key}',
+                    'maxResults': 200,
+                    'fields': ['customfield_10016', 'customfield_10026', 'customfield_10031', 'status']
+                }
+            )
+
+            if issue_response.status_code != 200:
+                continue
+
+            issues = issue_response.json().get('issues', [])
+
+            total_points = 0.0
+            completed_points = 0.0
+            for issue in issues:
+                points = issue['fields'].get('customfield_10016') or issue['fields'].get('customfield_10026') or issue['fields'].get('customfield_10031')
+                points = float(points) if points else 0.0
+                total_points += points
+
+                status = issue['fields'].get('status', {}).get('name', '').lower()
+                if status in ['done', 'closed', 'resolved']:
+                    completed_points += points
+
+            remaining_points = total_points - completed_points
+
+            if remaining_points > 0:
+                epic_data.append({
+                    'epic_key': epic_key,
+                    'epic_name': epic_name,
+                    'total_points': total_points,
+                    'completed_points': completed_points,
+                    'remaining_points': remaining_points,
+                    'progress_pct': (completed_points / total_points * 100) if total_points > 0 else 0,
+                    'colour': epic_colour
+                })
 
     # Sort by progress percentage (least progress first) to highlight blocked epics
     epic_data.sort(key=lambda e: e['progress_pct'])
