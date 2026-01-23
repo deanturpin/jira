@@ -67,6 +67,9 @@ TEAM_SIZE_2=3
 SPRINT_LENGTH_WEEKS_2=1
 
 RESEND_API_KEY=re_xxxxx
+
+# Email Configuration (optional)
+EMAIL_CC=colleague1@example.com,colleague2@example.com
 ```
 
 ## Usage

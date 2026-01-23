@@ -25,6 +25,10 @@ def send_email_with_attachment(to_email, pdf_path):
     project_key = os.path.basename(pdf_path).replace('_', ' ').replace('.pdf', '').upper()
     today = datetime.now().strftime('%Y-%m-%d')
 
+    # Get optional CC list
+    cc_list = os.getenv('EMAIL_CC', '').strip()
+    cc_emails = [email.strip() for email in cc_list.split(',') if email.strip()]
+
     # Simple HTML email body
     html_body = f"""
     <html>
@@ -53,6 +57,10 @@ def send_email_with_attachment(to_email, pdf_path):
             }
         ]
     }
+
+    # Add CC if configured
+    if cc_emails:
+        payload['cc'] = cc_emails
 
     response = requests.post(
         'https://api.resend.com/emails',
