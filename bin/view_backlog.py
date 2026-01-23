@@ -5,6 +5,8 @@ import os
 import sys
 from dotenv import load_dotenv
 import requests
+from jira_client import JiraClient
+from velocity_calculator import VelocityCalculator
 
 load_dotenv()
 
@@ -123,10 +125,13 @@ def main():
         print("  --points <N>    Show issues up to N story points (e.g., --points 20)")
         print("  --count <N>     Show N issues (e.g., --count 10)")
         print("  --details       Show additional details (priority, labels)")
+        print("\nDefault behaviour (no options):")
+        print("  Uses average velocity from recent sprints as the point limit")
+        print("  Perfect for sprint planning based on historical capacity")
         print("\nExamples:")
-        print("  python view_backlog.py 123 --points 20")
+        print("  python view_backlog.py 123              # Use average velocity")
+        print("  python view_backlog.py 123 --points 20  # Use specific limit")
         print("  python view_backlog.py 123 --count 15 --details")
-        print("  python view_backlog.py 123  # Show all backlog items")
         sys.exit(1)
 
     board_id = int(sys.argv[1])
@@ -156,9 +161,27 @@ def main():
         print("Error: Missing Jira credentials in .env file")
         sys.exit(1)
 
-    print(f"🔍 Fetching backlog for board {board_id}...")
+    # If no limit specified, use average velocity
+    if limit_points is None and limit_count is None:
+        print(f"📊 Calculating average velocity for board {board_id}...")
+        client = JiraClient(
+            os.getenv('JIRA_URL'),
+            os.getenv('JIRA_EMAIL'),
+            os.getenv('JIRA_API_TOKEN')
+        )
+        calc = VelocityCalculator(client)
+        velocity_data = calc.get_historical_velocity(board_id, months=6)
+
+        if velocity_data:
+            velocity_stats = calc.calculate_velocity_stats(velocity_data)
+            limit_points = velocity_stats['mean']
+            print(f"   Average velocity: {limit_points:.1f} story points")
+        else:
+            print("   Warning: Could not calculate velocity, showing all backlog items")
+
+    print(f"\n🔍 Fetching backlog for board {board_id}...")
     if limit_points:
-        print(f"   Limit: {limit_points:.0f} story points")
+        print(f"   Limit: {limit_points:.1f} story points")
     if limit_count:
         print(f"   Limit: {limit_count} issues")
 
