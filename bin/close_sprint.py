@@ -14,8 +14,8 @@ load_dotenv()
 def get_active_sprint(client, board_id):
     """Get the currently active sprint for a board."""
     response = requests.get(
-        f'{client.jira_url}/rest/agile/1.0/board/{board_id}/sprint',
-        auth=(client.jira_email, client.jira_api_token),
+        f'{client.url}/rest/agile/1.0/board/{board_id}/sprint',
+        auth=client.auth,
         params={'state': 'active'}
     )
     response.raise_for_status()
@@ -34,21 +34,30 @@ def get_active_sprint(client, board_id):
 def get_sprint_issues(client, sprint_id):
     """Get all issues in a sprint."""
     response = requests.get(
-        f'{client.jira_url}/rest/agile/1.0/sprint/{sprint_id}/issue',
-        auth=(client.jira_email, client.jira_api_token),
+        f'{client.url}/rest/agile/1.0/sprint/{sprint_id}/issue',
+        auth=client.auth,
         params={'maxResults': 500}
     )
     response.raise_for_status()
     return response.json().get('issues', [])
 
 
-def close_sprint(client, sprint_id):
+def close_sprint(client, sprint_id, dry_run=False):
     """Close a sprint."""
+    url = f'{client.url}/rest/agile/1.0/sprint/{sprint_id}'
+    payload = {'state': 'closed'}
+
+    if dry_run:
+        print(f"\n🔍 DRY RUN - Would POST to:")
+        print(f"   URL: {url}")
+        print(f"   Payload: {payload}")
+        return {'dry_run': True}
+
     response = requests.post(
-        f'{client.jira_url}/rest/agile/1.0/sprint/{sprint_id}',
-        auth=(client.jira_email, client.jira_api_token),
+        url,
+        auth=client.auth,
         headers={'Content-Type': 'application/json'},
-        json={'state': 'closed'}
+        json=payload
     )
     response.raise_for_status()
     return response.json()
@@ -57,14 +66,23 @@ def close_sprint(client, sprint_id):
 def main():
     """Main function to close active sprint."""
     if len(sys.argv) < 2:
-        print("Usage: python close_sprint.py <board_id>")
+        print("Usage: python close_sprint.py <board_id> [--dry-run] [--yes]")
+        print("\nOptions:")
+        print("  --dry-run       Show what would be done without actually closing")
+        print("  --yes           Skip confirmation prompt")
         print("\nExample:")
+        print("  python close_sprint.py 123 --dry-run")
+        print("  python close_sprint.py 123 --yes")
         print("  python close_sprint.py 123")
         print("\nTo find your board ID, look at your Jira board URL:")
         print("  https://your-domain.atlassian.net/.../boards/123")
         sys.exit(1)
 
     board_id = int(sys.argv[1])
+
+    # Check for flags
+    dry_run = '--dry-run' in sys.argv
+    skip_confirm = '--yes' in sys.argv
 
     # Initialize Jira client
     jira_url = os.getenv('JIRA_URL')
@@ -132,21 +150,30 @@ def main():
             print(f"    ... and {len(incomplete) - 10} more")
 
     # Confirmation
-    print(f"\n⚠️  This will:")
-    print(f"  1. Close sprint '{sprint_name}'")
-    print(f"  2. Move {incomplete_count} incomplete issues to the backlog")
-    print(f"  3. Archive {completed_count} completed issues with the sprint")
+    if dry_run:
+        print(f"\n🔍 DRY RUN MODE - No changes will be made")
+    else:
+        print(f"\n⚠️  This will:")
+        print(f"  1. Close sprint '{sprint_name}'")
+        print(f"  2. Move {incomplete_count} incomplete issues to the backlog")
+        print(f"  3. Archive {completed_count} completed issues with the sprint")
 
-    confirm = input(f"\n❓ Are you sure you want to close this sprint? (yes/no): ").strip().lower()
+        if not skip_confirm:
+            confirm = input(f"\n❓ Are you sure you want to close this sprint? (yes/no): ").strip().lower()
 
-    if confirm != 'yes':
-        print("\n🚫 Sprint closure cancelled")
-        sys.exit(0)
+            if confirm != 'yes':
+                print("\n🚫 Sprint closure cancelled")
+                sys.exit(0)
+        else:
+            print(f"\n✓ Proceeding with sprint closure (--yes flag provided)")
 
     # Close the sprint
-    print(f"\n🔄 Closing sprint...")
+    if dry_run:
+        print(f"\n🔍 Would close sprint...")
+    else:
+        print(f"\n🔄 Closing sprint...")
     try:
-        result = close_sprint(client, sprint_id)
+        result = close_sprint(client, sprint_id, dry_run)
         print(f"\n✅ Sprint '{sprint_name}' closed successfully!")
         print(f"\n📦 Results:")
         print(f"  - Completed issues: {completed_count} (archived with sprint)")
