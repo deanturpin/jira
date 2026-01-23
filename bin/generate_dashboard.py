@@ -397,6 +397,15 @@ def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_dat
             <h2>📋 Epic Breakdown</h2>
             <p style="color: #666; font-size: 14px; margin-bottom: 15px;">Sorted by remaining work (highest first). Time to complete assumes one person working at average velocity.</p>
             <table>
+                <colgroup>
+                    <col style="width: 8%;">
+                    <col style="width: 25%;">
+                    <col style="width: 10%;">
+                    <col style="width: 10%;">
+                    <col style="width: 8%;">
+                    <col style="width: 25%;">
+                    <col style="width: 14%;">
+                </colgroup>
                 <thead>
                     <tr>
                         <th>Epic</th>
@@ -405,7 +414,7 @@ def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_dat
                         <th style="text-align: right;">Completed</th>
                         <th style="text-align: right;">Total</th>
                         <th style="text-align: center;">Progress</th>
-                        <th style="text-align: right;">Time (1 dev)</th>
+                        <th style="text-align: right;">Weeks (1 dev)</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -418,8 +427,8 @@ def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_dat
         progress_pct = epic['pct']
         epic_colour = get_jira_colour_hex(epic.get('colour', 'color_4'))
 
-        # Calculate sprints needed for 1 developer
-        sprints_needed = epic['remaining'] / per_dev_velocity if per_dev_velocity > 0 else 0
+        # Calculate weeks needed for 1 developer (sprints are 1 week each)
+        weeks_needed = epic['remaining'] / per_dev_velocity if per_dev_velocity > 0 else 0
 
         epic_link = f'{jira_url}/browse/{epic["key"]}' if jira_url else '#'
         html += f"""
@@ -435,7 +444,7 @@ def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_dat
                             </div>
                             <div style="text-align: center; font-size: 12px; margin-top: 4px;">{progress_pct:.0f}%</div>
                         </td>
-                        <td style="text-align: right;">{sprints_needed:.1f} sprints</td>
+                        <td style="text-align: right;">{weeks_needed:.1f}w</td>
                     </tr>
 """
 

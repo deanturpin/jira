@@ -300,7 +300,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url):
 
     # Epic breakdown table
     epic_table_data = [
-        ['Epic', 'Name', 'Remaining', 'Completed', 'Total', 'Progress', 'Time (1 dev)']
+        ['Epic', 'Name', 'Remaining', 'Completed', 'Total', 'Progress', 'Weeks (1 dev)']
     ]
 
     # Build table and collect colour styling
@@ -324,8 +324,8 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url):
     for idx, epic in enumerate(epic_data):
         row_idx = idx + 1  # +1 because of header row
 
-        # Calculate sprints for 1 developer
-        sprints_needed = epic['remaining_points'] / per_dev_velocity if per_dev_velocity > 0 else 0
+        # Calculate weeks for 1 developer (sprints are 1 week each)
+        weeks_needed = epic['remaining_points'] / per_dev_velocity if per_dev_velocity > 0 else 0
 
         epic_table_data.append([
             epic['epic_key'],
@@ -334,7 +334,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url):
             f"{epic['completed_points']:.0f}",
             f"{epic['total_points']:.0f}",
             f"{epic['progress_pct']:.0f}%",
-            f"{sprints_needed:.1f}"
+            f"{weeks_needed:.1f}w"
         ])
 
         # Add colour bar to left of epic key
