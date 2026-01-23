@@ -1,4 +1,4 @@
-.PHONY: all dashboard velocity report epics gantt pdf clean help
+.PHONY: all dashboard velocity report epics gantt pdf clean help deploy
 
 # Default target - generate everything in one pass
 all:
@@ -46,6 +46,10 @@ clean:
 	@rm -f public/*.html public/*.png public/*.xlsx public/*.json public/*.pdf
 	@echo "✓ Cleaned public/ directory"
 
+# Deploy to VPS
+deploy:
+	@./deploy-to-vps.sh
+
 # Show help
 help:
 	@echo "Jira Planning Tools - Makefile"
@@ -59,6 +63,7 @@ help:
 	@echo "  make report       Generate Excel report"
 	@echo "  make epics        List epic remaining work (console)"
 	@echo "  make clean        Remove all generated files"
+	@echo "  make deploy       Deploy to VPS (sornhub)"
 	@echo "  make help         Show this help message"
 	@echo ""
 	@echo "Prerequisites:"
