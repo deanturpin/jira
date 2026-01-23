@@ -295,9 +295,12 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url):
     # Add page break before Epic Breakdown
     story.append(PageBreak())
 
+    # Calculate per-developer velocity
+    per_dev_velocity = avg_velocity / team_size if team_size > 0 else 0
+
     # Epic breakdown table
     epic_table_data = [
-        ['Epic', 'Name', 'Remaining', 'Completed', 'Total', 'Progress']
+        ['Epic', 'Name', 'Remaining', 'Completed', 'Total', 'Progress', 'Time (1 dev)']
     ]
 
     # Build table and collect colour styling
@@ -320,13 +323,18 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url):
 
     for idx, epic in enumerate(epic_data):
         row_idx = idx + 1  # +1 because of header row
+
+        # Calculate sprints for 1 developer
+        sprints_needed = epic['remaining_points'] / per_dev_velocity if per_dev_velocity > 0 else 0
+
         epic_table_data.append([
             epic['epic_key'],
-            epic['epic_name'][:40] + '...' if len(epic['epic_name']) > 40 else epic['epic_name'],
+            epic['epic_name'][:35] + '...' if len(epic['epic_name']) > 35 else epic['epic_name'],
             f"{epic['remaining_points']:.0f}",
             f"{epic['completed_points']:.0f}",
             f"{epic['total_points']:.0f}",
-            f"{epic['progress_pct']:.0f}%"
+            f"{epic['progress_pct']:.0f}%",
+            f"{sprints_needed:.1f}"
         ])
 
         # Add colour bar to left of epic key
@@ -334,7 +342,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url):
         epic_table_styles.append(('BACKGROUND', (0, row_idx), (0, row_idx), epic_colour))
         epic_table_styles.append(('TEXTCOLOR', (0, row_idx), (0, row_idx), colors.white))
 
-    epic_table = Table(epic_table_data, colWidths=[25*mm, 85*mm, 20*mm, 20*mm, 20*mm, 20*mm])
+    epic_table = Table(epic_table_data, colWidths=[25*mm, 75*mm, 18*mm, 18*mm, 18*mm, 18*mm, 18*mm])
     epic_table.setStyle(TableStyle(epic_table_styles))
 
     story.append(epic_table)
