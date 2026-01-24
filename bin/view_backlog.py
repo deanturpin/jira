@@ -48,7 +48,6 @@ def get_backlog_top_issues(board_id, limit_points=None, limit_count=None):
 
     # Extract and format issues
     backlog_items = []
-    total_points = 0.0
 
     for issue in issues:
         # Try all common story point fields
@@ -63,7 +62,7 @@ def get_backlog_top_issues(board_id, limit_points=None, limit_count=None):
         priority = issue['fields'].get('priority', {}).get('name', 'None')
         labels = issue['fields'].get('labels', [])
 
-        item = {
+        backlog_items.append({
             'key': issue['key'],
             'summary': issue['fields'].get('summary', 'No summary'),
             'points': points,
@@ -71,23 +70,40 @@ def get_backlog_top_issues(board_id, limit_points=None, limit_count=None):
             'assignee': assignee_name,
             'priority': priority,
             'labels': labels
-        }
+        })
 
+    # Sort by priority: Highest -> High -> Medium -> Low -> Minor -> Trivial -> None
+    priority_order = {
+        'Highest': 0,
+        'High': 1,
+        'Medium': 2,
+        'Low': 3,
+        'Minor': 4,
+        'Trivial': 5,
+        'None': 6
+    }
+    backlog_items.sort(key=lambda x: priority_order.get(x['priority'], 999))
+
+    # Now apply limits after sorting
+    filtered_items = []
+    total_points = 0.0
+
+    for item in backlog_items:
         # Check limits
-        if limit_points and total_points + points > limit_points:
+        if limit_points and total_points + item['points'] > limit_points:
             # Only add if we haven't reached the count limit
-            if not limit_count or len(backlog_items) < limit_count:
-                backlog_items.append(item)
+            if not limit_count or len(filtered_items) < limit_count:
+                filtered_items.append(item)
             break
 
-        backlog_items.append(item)
-        total_points += points
+        filtered_items.append(item)
+        total_points += item['points']
 
         # Check count limit
-        if limit_count and len(backlog_items) >= limit_count:
+        if limit_count and len(filtered_items) >= limit_count:
             break
 
-    return backlog_items
+    return filtered_items
 
 
 def print_backlog_items(items, show_details=False):
