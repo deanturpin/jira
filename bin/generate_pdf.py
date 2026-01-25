@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm, inch
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak, PageTemplate, Frame, NextPageTemplate
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.pdfgen import canvas
@@ -285,6 +285,24 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         bottomMargin=20*mm
     )
 
+    # Define page templates for mixed orientation
+    portrait_frame = Frame(
+        doc.leftMargin, doc.bottomMargin,
+        doc.width, doc.height,
+        id='portrait_frame'
+    )
+    landscape_frame = Frame(
+        20*mm, 20*mm,
+        landscape(A4)[0] - 40*mm,
+        landscape(A4)[1] - 40*mm,
+        id='landscape_frame'
+    )
+
+    portrait_template = PageTemplate(id='portrait', frames=[portrait_frame], pagesize=A4)
+    landscape_template = PageTemplate(id='landscape', frames=[landscape_frame], pagesize=landscape(A4))
+
+    doc.addPageTemplates([portrait_template, landscape_template])
+
     story = []
     styles = getSampleStyleSheet()
 
@@ -349,26 +367,20 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         ParagraphStyle('small', parent=styles['Normal'], fontSize=8)
     ))
 
-    story.append(Spacer(1, 8*mm))
+    # Switch to landscape for Gantt chart
+    story.append(NextPageTemplate('landscape'))
+    story.append(PageBreak())
 
-    # Gantt chart (rotated 90 degrees for portrait)
+    # Gantt chart on landscape page
     gantt_path = f'../public/{project_key}_gantt.png'
     if os.path.exists(gantt_path):
-        # Rotate Gantt 90 degrees to fit portrait orientation
-        pil_img = PILImage.open(gantt_path)
-        pil_img_rotated = pil_img.rotate(90, expand=True)
-
-        # Save rotated image to buffer
-        rotated_buf = io.BytesIO()
-        pil_img_rotated.save(rotated_buf, format='PNG')
-        rotated_buf.seek(0)
-
-        img = Image(rotated_buf, width=170*mm, height=100*mm, kind='proportional')
+        img = Image(gantt_path, width=250*mm, height=140*mm, kind='proportional')
         story.append(img)
     else:
         story.append(Paragraph("Gantt chart not found. Run generate_gantt.py first.", styles['Normal']))
 
-    # Add page break before Epic Breakdown
+    # Switch back to portrait for Epic Breakdown
+    story.append(NextPageTemplate('portrait'))
     story.append(PageBreak())
 
     # Calculate per-developer velocity
