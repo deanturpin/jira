@@ -367,7 +367,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
 
     # Epic breakdown table
     epic_table_data = [
-        ['Epic', 'Name', 'Remaining', 'Completed', 'Total', 'Progress', 'Weeks (1 dev)']
+        ['Epic', 'Name', 'Remaining', 'Completed', 'Total', 'Progress', 'Weeks']
     ]
 
     # Build table and collect colour styling
@@ -401,7 +401,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
             f"{epic['completed_points']:.0f}",
             f"{epic['total_points']:.0f}",
             f"{epic['progress_pct']:.0f}%",
-            f"{weeks_needed:.1f}w"
+            f"{weeks_needed:.1f}"
         ])
 
         # Add colour bar to left of epic key
@@ -409,7 +409,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         epic_table_styles.append(('BACKGROUND', (0, row_idx), (0, row_idx), epic_colour))
         epic_table_styles.append(('TEXTCOLOR', (0, row_idx), (0, row_idx), colors.white))
 
-    epic_table = Table(epic_table_data, colWidths=[25*mm, 75*mm, 18*mm, 18*mm, 18*mm, 18*mm, 18*mm])
+    epic_table = Table(epic_table_data, colWidths=[25*mm, 65*mm, 18*mm, 18*mm, 18*mm, 18*mm, 18*mm])
     epic_table.setStyle(TableStyle(epic_table_styles))
 
     story.append(epic_table)
