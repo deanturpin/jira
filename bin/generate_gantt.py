@@ -147,13 +147,13 @@ def generate_project_gantt(client, project_key, board_id, team_size):
     velocity_data = velocity_calc.get_historical_velocity(board_id, months=6)
     velocity_stats = velocity_calc.calculate_velocity_stats(velocity_data)
 
-    # Apply velocity override if set
+    # Apply target velocity if set
     velocity_override = os.getenv('VELOCITY_OVERRIDE')
     if velocity_override:
         actual_velocity = velocity_stats['mean']
         velocity_stats['mean'] = float(velocity_override)
         avg_velocity = velocity_stats['mean']
-        print(f"Using velocity override: {avg_velocity:.1f} points/sprint (actual: {actual_velocity:.1f})")
+        print(f"Target velocity: {avg_velocity:.1f} points/sprint (actual: {actual_velocity:.1f})")
     else:
         avg_velocity = velocity_stats['mean']
         print(f"Average velocity: {avg_velocity:.1f} points/sprint")

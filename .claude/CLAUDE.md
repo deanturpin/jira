@@ -38,7 +38,7 @@ When adding support for new boards, use `inspect_fields.py [board_id]` to identi
 - Only counts story points from completed issues (status: done/closed/resolved)
 - Calculates mean, median, and standard deviation
 - Does NOT factor in team size (historical velocity already reflects team capacity)
-- **Velocity Override**: Set `VELOCITY_OVERRIDE` in `.env` to use a fixed velocity instead of calculating from historical sprints (useful for new teams or unreliable historical data)
+- **Target Velocity**: Set `VELOCITY_OVERRIDE` in `.env` to use a target velocity for planning instead of calculating from historical sprints (useful for setting ambitious goals or when historical data is unreliable; displays as "target velocity (actual: X)" in reports)
 
 ### Epic Timeline Projection
 
