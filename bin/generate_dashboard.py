@@ -556,7 +556,7 @@ def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_dat
     return html
 
 
-def generate_project_dashboard(client, project_key, board_id, team_size, jira_url):
+def generate_project_dashboard(client, project_key, board_id, team_size, jira_url, target_velocity=None):
     """Generate dashboard for a single project."""
     velocity_calc = VelocityCalculator(client)
 
@@ -565,12 +565,16 @@ def generate_project_dashboard(client, project_key, board_id, team_size, jira_ur
     velocity_data = velocity_calc.get_historical_velocity(board_id, months=6)
     velocity_stats = velocity_calc.calculate_velocity_stats(velocity_data)
 
-    # Apply target velocity if set
-    velocity_override = os.getenv('TARGET_VELOCITY') or os.getenv('VELOCITY_OVERRIDE')  # Support old name for compatibility
-    is_target_velocity = bool(velocity_override)
-    if velocity_override:
+    # Apply target velocity if set (prefer parameter over environment variable)
+    if target_velocity is None:
+        target_velocity = os.getenv('TARGET_VELOCITY') or os.getenv('VELOCITY_OVERRIDE')  # Fallback to old name
+        if target_velocity:
+            target_velocity = float(target_velocity)
+
+    is_target_velocity = bool(target_velocity)
+    if target_velocity:
         actual_velocity = velocity_stats['mean']
-        velocity_stats['mean'] = float(velocity_override)
+        velocity_stats['mean'] = target_velocity
         print(f"  Target velocity: {velocity_stats['mean']:.1f} points/sprint (actual: {actual_velocity:.1f})")
     else:
         print(f"  Average velocity: {velocity_stats['mean']:.1f} points/sprint")

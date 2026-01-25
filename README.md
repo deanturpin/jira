@@ -68,10 +68,11 @@ JIRA_BOARD_ID_2=456
 TEAM_SIZE_2=3
 SPRINT_LENGTH_WEEKS_2=1
 
-# Target Velocity (optional)
+# Target Velocity (optional, per-project)
 # If set, uses this target velocity for planning instead of historical average
 # Displays as "target velocity (actual: X)" in reports
-# TARGET_VELOCITY=11
+# TARGET_VELOCITY_1=11
+# TARGET_VELOCITY_2=15
 
 RESEND_API_KEY=re_xxxxx
 
@@ -212,7 +213,7 @@ The dashboard filters out epics where `remaining == 0`. If an epic still appears
 - Uses last 6 months of completed sprints by default
 - Calculates mean, median, and standard deviation
 - Only counts story points from completed issues (status: done/closed/resolved)
-- **Target Velocity**: Set `TARGET_VELOCITY` in `.env` to use a target velocity for planning (useful for setting ambitious goals or when historical data is unreliable; displays as "target velocity (actual: X)" in reports)
+- **Target Velocity**: Set `TARGET_VELOCITY_N` (per-project) in `.env` to use a target velocity for planning (useful for setting ambitious goals or when historical data is unreliable; displays as "target velocity (actual: X)" in reports)
 
 ### Epic Timeline Projection
 

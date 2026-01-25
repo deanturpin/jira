@@ -138,7 +138,7 @@ def create_gantt_chart(epic_timeline, velocity_stats, project_key, team_size):
     return fig
 
 
-def generate_project_gantt(client, project_key, board_id, team_size):
+def generate_project_gantt(client, project_key, board_id, team_size, target_velocity=None):
     """Generate Gantt chart for a single project."""
 
     # Get velocity data (last 6 months)
@@ -147,11 +147,15 @@ def generate_project_gantt(client, project_key, board_id, team_size):
     velocity_data = velocity_calc.get_historical_velocity(board_id, months=6)
     velocity_stats = velocity_calc.calculate_velocity_stats(velocity_data)
 
-    # Apply target velocity if set
-    velocity_override = os.getenv('TARGET_VELOCITY') or os.getenv('VELOCITY_OVERRIDE')  # Support old name for compatibility
-    if velocity_override:
+    # Apply target velocity if set (prefer parameter over environment variable)
+    if target_velocity is None:
+        target_velocity = os.getenv('TARGET_VELOCITY') or os.getenv('VELOCITY_OVERRIDE')  # Fallback to old name
+        if target_velocity:
+            target_velocity = float(target_velocity)
+
+    if target_velocity:
         actual_velocity = velocity_stats['mean']
-        velocity_stats['mean'] = float(velocity_override)
+        velocity_stats['mean'] = target_velocity
         avg_velocity = velocity_stats['mean']
         print(f"Target velocity: {avg_velocity:.1f} points/sprint (actual: {actual_velocity:.1f})")
     else:

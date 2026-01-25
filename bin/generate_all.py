@@ -48,10 +48,12 @@ def main():
         # Skip if project key or board ID is empty/null
         if project_key and board_id:
             team_size = int(os.getenv(f'TEAM_SIZE_{i}', '5'))
+            target_velocity = os.getenv(f'TARGET_VELOCITY_{i}') or os.getenv('VELOCITY_OVERRIDE')  # Fallback to old name
             projects.append({
                 'key': project_key.lower(),
                 'board_id': int(board_id),
-                'team_size': team_size
+                'team_size': team_size,
+                'target_velocity': float(target_velocity) if target_velocity else None
             })
 
         i += 1
@@ -66,10 +68,12 @@ def main():
             sys.exit(1)
 
         team_size = int(os.getenv('TEAM_SIZE', '5'))
+        target_velocity = os.getenv('TARGET_VELOCITY') or os.getenv('VELOCITY_OVERRIDE')  # Fallback to old name
         projects.append({
             'key': project_key.lower(),
             'board_id': int(board_id),
-            'team_size': team_size
+            'team_size': team_size,
+            'target_velocity': float(target_velocity) if target_velocity else None
         })
 
     print(f"Found {len(projects)} project(s) to process\n")
@@ -91,7 +95,8 @@ def main():
             project['key'],
             project['board_id'],
             project['team_size'],
-            jira_url
+            jira_url,
+            project.get('target_velocity')
         )
         dashboard_files.append(dashboard_file)
 
@@ -101,7 +106,8 @@ def main():
             client,
             project['key'],
             project['board_id'],
-            project['team_size']
+            project['team_size'],
+            project.get('target_velocity')
         )
         if gantt_file:
             gantt_files.append(gantt_file)
