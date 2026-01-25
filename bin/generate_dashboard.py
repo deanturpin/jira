@@ -145,7 +145,7 @@ def create_epic_chart_base64(epic_data):
     return img_base64
 
 
-def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_data, team_size=5, jira_url=''):
+def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_data, team_size=5, jira_url='', is_target_velocity=False):
     """Generate complete HTML dashboard."""
 
     # Generate charts
@@ -160,6 +160,7 @@ def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_dat
 
     # Calculate projected completion
     avg_velocity = velocity_stats['mean']
+    velocity_label = "Target Velocity" if is_target_velocity else "Average Velocity"
     sprints_remaining = int(total_remaining / avg_velocity) if avg_velocity > 0 else 999
     weeks_remaining = sprints_remaining  # 1-week sprints
 
@@ -339,7 +340,7 @@ def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_dat
                 <div class="subvalue">developers</div>
             </div>
             <div class="metric-card">
-                <h3>Average Velocity</h3>
+                <h3>{velocity_label}</h3>
                 <div class="value">{velocity_stats['mean']:.0f}</div>
                 <div class="subvalue">points/sprint ± {velocity_stats['std_dev']:.0f}</div>
             </div>
@@ -566,6 +567,7 @@ def generate_project_dashboard(client, project_key, board_id, team_size, jira_ur
 
     # Apply target velocity if set
     velocity_override = os.getenv('VELOCITY_OVERRIDE')
+    is_target_velocity = bool(velocity_override)
     if velocity_override:
         actual_velocity = velocity_stats['mean']
         velocity_stats['mean'] = float(velocity_override)
@@ -795,7 +797,7 @@ def generate_project_dashboard(client, project_key, board_id, team_size, jira_ur
 
     # Generate HTML
     print(f"Generating HTML dashboard for {project_key.upper()}...")
-    html = generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_data, team_size, jira_url)
+    html = generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_data, team_size, jira_url, is_target_velocity)
 
     output_file = f'../public/{project_key}.html'
     with open(output_file, 'w') as f:
