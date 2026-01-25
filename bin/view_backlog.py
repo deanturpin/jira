@@ -183,7 +183,24 @@ def main():
 
         if velocity_override:
             limit_points = float(velocity_override)
-            print(f"📊 Using velocity override: {limit_points:.1f} story points")
+
+            # Calculate actual velocity to show in brackets
+            print(f"📊 Calculating average velocity for board {board_id}...")
+            client = JiraClient(
+                os.getenv('JIRA_URL'),
+                os.getenv('JIRA_EMAIL'),
+                os.getenv('JIRA_API_TOKEN')
+            )
+            calc = VelocityCalculator(client)
+            velocity_data = calc.get_historical_velocity(board_id, months=6)
+
+            if velocity_data:
+                velocity_stats = calc.calculate_velocity_stats(velocity_data)
+                actual_velocity = velocity_stats['mean']
+                print(f"   Average velocity: {actual_velocity:.1f} story points")
+                print(f"📊 Using velocity override: {limit_points:.1f} story points (actual: {actual_velocity:.1f})")
+            else:
+                print(f"📊 Using velocity override: {limit_points:.1f} story points")
         else:
             print(f"📊 Calculating average velocity for board {board_id}...")
             client = JiraClient(
