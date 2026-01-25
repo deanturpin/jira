@@ -564,6 +564,15 @@ def generate_project_dashboard(client, project_key, board_id, team_size, jira_ur
     velocity_data = velocity_calc.get_historical_velocity(board_id, months=6)
     velocity_stats = velocity_calc.calculate_velocity_stats(velocity_data)
 
+    # Apply velocity override if set
+    velocity_override = os.getenv('VELOCITY_OVERRIDE')
+    if velocity_override:
+        actual_velocity = velocity_stats['mean']
+        velocity_stats['mean'] = float(velocity_override)
+        print(f"  Using velocity override: {velocity_stats['mean']:.1f} points/sprint (actual: {actual_velocity:.1f})")
+    else:
+        print(f"  Average velocity: {velocity_stats['mean']:.1f} points/sprint")
+
     # Fetch epic data
     print("Fetching epic data...")
     import requests
