@@ -58,8 +58,14 @@ def get_status_badge_colour(status):
     return {'background': '#dfe6e9', 'text': '#636e72'}
 
 
-def create_velocity_chart_base64(velocity_data, stats):
-    """Create velocity chart and return as base64 string."""
+def create_velocity_chart_base64(velocity_data, stats, actual_velocity=None):
+    """Create velocity chart and return as base64 string.
+
+    Args:
+        velocity_data: List of sprint velocity data
+        stats: Velocity statistics (may contain target velocity if set)
+        actual_velocity: Actual historical velocity (if target velocity is active)
+    """
     sprint_names = [v['sprint_name'] for v in velocity_data]
     completed_points = [v['completed_points'] for v in velocity_data]
     committed_points = [v['total_points'] for v in velocity_data]
@@ -85,9 +91,20 @@ def create_velocity_chart_base64(velocity_data, stats):
     ax.plot(x_positions, moving_avg, color='red', linewidth=2,
             marker='o', label=f'{window_size}-Sprint Moving Average')
 
-    mean_velocity = stats['mean']
-    ax.axhline(y=mean_velocity, color='green', linestyle='--',
-               linewidth=2, label=f'Average ({mean_velocity:.1f} pts)')
+    # Show both target and actual velocity lines if target is set
+    if actual_velocity is not None:
+        # Target velocity line (using stats['mean'] which contains target)
+        target_velocity = stats['mean']
+        ax.axhline(y=target_velocity, color='orange', linestyle='--',
+                   linewidth=2, label=f'Target ({target_velocity:.1f} pts)')
+        # Actual velocity line
+        ax.axhline(y=actual_velocity, color='green', linestyle='--',
+                   linewidth=2, label=f'Actual Mean ({actual_velocity:.1f} pts)')
+    else:
+        # Just show mean velocity line
+        mean_velocity = stats['mean']
+        ax.axhline(y=mean_velocity, color='green', linestyle='--',
+                   linewidth=2, label=f'Average ({mean_velocity:.1f} pts)')
 
     ax.set_xlabel('Sprint', fontsize=11, fontweight='bold')
     ax.set_ylabel('Story Points', fontsize=11, fontweight='bold')
@@ -145,11 +162,22 @@ def create_epic_chart_base64(epic_data):
     return img_base64
 
 
-def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_data, team_size=5, jira_url='', is_target_velocity=False):
-    """Generate complete HTML dashboard."""
+def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_data, team_size=5, jira_url='', is_target_velocity=False, actual_velocity=None):
+    """Generate complete HTML dashboard.
+
+    Args:
+        project_key: Project identifier
+        velocity_data: List of sprint velocity data
+        velocity_stats: Velocity statistics (may contain target velocity if set)
+        epic_data: List of epic data
+        team_size: Number of developers
+        jira_url: Base Jira URL
+        is_target_velocity: Whether target velocity is being used
+        actual_velocity: Actual historical velocity (if target velocity is active)
+    """
 
     # Generate charts
-    velocity_chart = create_velocity_chart_base64(velocity_data, velocity_stats)
+    velocity_chart = create_velocity_chart_base64(velocity_data, velocity_stats, actual_velocity)
     epic_chart = create_epic_chart_base64(epic_data)
 
     # Calculate metrics
@@ -572,6 +600,7 @@ def generate_project_dashboard(client, project_key, board_id, team_size, jira_ur
             target_velocity = float(target_velocity)
 
     is_target_velocity = bool(target_velocity)
+    actual_velocity = None
     if target_velocity:
         actual_velocity = velocity_stats['mean']
         velocity_stats['mean'] = target_velocity
@@ -801,7 +830,7 @@ def generate_project_dashboard(client, project_key, board_id, team_size, jira_ur
 
     # Generate HTML
     print(f"Generating HTML dashboard for {project_key.upper()}...")
-    html = generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_data, team_size, jira_url, is_target_velocity)
+    html = generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_data, team_size, jira_url, is_target_velocity, actual_velocity)
 
     output_file = f'../public/{project_key}.html'
     with open(output_file, 'w') as f:
