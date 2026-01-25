@@ -177,23 +177,29 @@ def main():
         print("Error: Missing Jira credentials in .env file")
         sys.exit(1)
 
-    # If no limit specified, use average velocity
+    # If no limit specified, use velocity override or calculate average velocity
     if limit_points is None and limit_count is None:
-        print(f"📊 Calculating average velocity for board {board_id}...")
-        client = JiraClient(
-            os.getenv('JIRA_URL'),
-            os.getenv('JIRA_EMAIL'),
-            os.getenv('JIRA_API_TOKEN')
-        )
-        calc = VelocityCalculator(client)
-        velocity_data = calc.get_historical_velocity(board_id, months=6)
+        velocity_override = os.getenv('VELOCITY_OVERRIDE')
 
-        if velocity_data:
-            velocity_stats = calc.calculate_velocity_stats(velocity_data)
-            limit_points = velocity_stats['mean']
-            print(f"   Average velocity: {limit_points:.1f} story points")
+        if velocity_override:
+            limit_points = float(velocity_override)
+            print(f"📊 Using velocity override: {limit_points:.1f} story points")
         else:
-            print("   Warning: Could not calculate velocity, showing all backlog items")
+            print(f"📊 Calculating average velocity for board {board_id}...")
+            client = JiraClient(
+                os.getenv('JIRA_URL'),
+                os.getenv('JIRA_EMAIL'),
+                os.getenv('JIRA_API_TOKEN')
+            )
+            calc = VelocityCalculator(client)
+            velocity_data = calc.get_historical_velocity(board_id, months=6)
+
+            if velocity_data:
+                velocity_stats = calc.calculate_velocity_stats(velocity_data)
+                limit_points = velocity_stats['mean']
+                print(f"   Average velocity: {limit_points:.1f} story points")
+            else:
+                print("   Warning: Could not calculate velocity, showing all backlog items")
 
     print(f"\n🔍 Fetching backlog for board {board_id}...")
     if limit_points:
