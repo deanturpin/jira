@@ -23,8 +23,14 @@ from velocity_calculator import VelocityCalculator
 import requests
 
 
-def create_velocity_chart(velocity_data, velocity_stats):
-    """Create velocity trend chart as temporary image."""
+def create_velocity_chart(velocity_data, velocity_stats, actual_velocity=None):
+    """Create velocity trend chart as temporary image.
+
+    Args:
+        velocity_data: List of sprint velocity data
+        velocity_stats: Velocity statistics (may contain target velocity if set)
+        actual_velocity: Actual historical velocity (if target velocity is active)
+    """
     if not velocity_data:
         return None
 
@@ -36,8 +42,16 @@ def create_velocity_chart(velocity_data, velocity_stats):
     x = range(len(sprint_names))
     ax.bar(x, completed_points, color='#667eea', alpha=0.7, label='Completed Points')
 
-    # Add mean line
-    ax.axhline(y=velocity_stats['mean'], color='#cc4748', linestyle='--', linewidth=2, label=f'Mean: {velocity_stats["mean"]:.1f}')
+    # Show both target and actual velocity lines if target is set
+    if actual_velocity is not None:
+        # Target velocity line (using velocity_stats['mean'] which contains target)
+        target_velocity = velocity_stats['mean']
+        ax.axhline(y=target_velocity, color='orange', linestyle='--', linewidth=2, label=f'Target: {target_velocity:.1f}')
+        # Actual velocity line
+        ax.axhline(y=actual_velocity, color='green', linestyle='--', linewidth=2, label=f'Actual Mean: {actual_velocity:.1f}')
+    else:
+        # Just show mean velocity line
+        ax.axhline(y=velocity_stats['mean'], color='#cc4748', linestyle='--', linewidth=2, label=f'Mean: {velocity_stats["mean"]:.1f}')
 
     ax.set_xlabel('Sprint', fontweight='bold')
     ax.set_ylabel('Story Points', fontweight='bold')
@@ -116,9 +130,10 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         if target_velocity:
             target_velocity = float(target_velocity)
 
-    actual_velocity = velocity_stats['mean']
     is_target_velocity = bool(target_velocity)
+    actual_velocity = None
     if target_velocity:
+        actual_velocity = velocity_stats['mean']
         velocity_stats['mean'] = target_velocity
 
     avg_velocity = velocity_stats['mean']
@@ -331,7 +346,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
     story.append(Spacer(1, 10*mm))
 
     # Sprint velocity trend
-    velocity_chart_buf = create_velocity_chart(velocity_data, velocity_stats)
+    velocity_chart_buf = create_velocity_chart(velocity_data, velocity_stats, actual_velocity)
     if velocity_chart_buf:
         velocity_img = Image(velocity_chart_buf, width=220*mm, height=90*mm)
         story.append(velocity_img)
