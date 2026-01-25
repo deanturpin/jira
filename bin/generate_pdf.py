@@ -17,6 +17,7 @@ from reportlab.pdfgen import canvas
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from PIL import Image as PILImage
 
 from jira_client import JiraClient
 from velocity_calculator import VelocityCalculator
@@ -277,11 +278,11 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
 
     doc = SimpleDocTemplate(
         output_file,
-        pagesize=landscape(A4),
-        rightMargin=30*mm,
-        leftMargin=30*mm,
-        topMargin=25*mm,
-        bottomMargin=25*mm
+        pagesize=A4,
+        rightMargin=20*mm,
+        leftMargin=20*mm,
+        topMargin=20*mm,
+        bottomMargin=20*mm
     )
 
     story = []
@@ -291,15 +292,15 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
-        fontSize=24,
+        fontSize=20,
         textColor=colors.HexColor('#667eea'),
-        spaceAfter=30,
+        spaceAfter=15,
         alignment=TA_CENTER
     )
     story.append(Paragraph(f"{project_key.upper()} Planning Report", title_style))
-    story.append(Spacer(1, 10*mm))
+    story.append(Spacer(1, 5*mm))
 
-    # Metrics summary table
+    # Metrics summary table (portrait-optimised)
     velocity_label = 'Target Velocity' if is_target_velocity else 'Average Velocity'
     if is_target_velocity:
         velocity_text = f'{avg_velocity:.0f} pts/sprint (target)\n{actual_velocity:.0f} pts/sprint (actual)'
@@ -316,48 +317,56 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         ]
     ]
 
-    metrics_table = Table(metrics_data, colWidths=[50*mm, 50*mm, 50*mm, 60*mm])
+    metrics_table = Table(metrics_data, colWidths=[42*mm, 42*mm, 42*mm, 44*mm])
     metrics_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#667eea')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
         ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8f9fa')),
         ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
     ]))
 
     story.append(metrics_table)
-    story.append(Spacer(1, 15*mm))
+    story.append(Spacer(1, 8*mm))
 
-    # Gantt chart (matching HTML order)
-    gantt_path = f'../public/{project_key}_gantt.png'
-    if os.path.exists(gantt_path):
-        # Use keepAspectRatio to fit within page
-        img = Image(gantt_path, width=230*mm, height=130*mm, kind='proportional')
-        story.append(img)
-    else:
-        story.append(Paragraph("Gantt chart not found. Run generate_gantt.py first.", styles['Normal']))
-
-    story.append(Spacer(1, 10*mm))
-
-    # Sprint velocity trend
+    # Sprint velocity trend combined with summary on first page
     velocity_chart_buf = create_velocity_chart(velocity_data, velocity_stats, actual_velocity)
     if velocity_chart_buf:
-        velocity_img = Image(velocity_chart_buf, width=220*mm, height=90*mm)
+        velocity_img = Image(velocity_chart_buf, width=170*mm, height=70*mm)
         story.append(velocity_img)
 
-    story.append(Spacer(1, 5*mm))
+    story.append(Spacer(1, 3*mm))
     story.append(Paragraph(
         f"Showing {len(velocity_data)} most recent sprints. "
         f"Latest sprint: {velocity_data[-1]['completed_points']:.0f} points. "
         f"Coefficient of variation: {(velocity_stats['std_dev']/velocity_stats['mean']*100):.0f}%",
-        styles['Normal']
+        ParagraphStyle('small', parent=styles['Normal'], fontSize=8)
     ))
+
+    story.append(Spacer(1, 8*mm))
+
+    # Gantt chart (rotated 90 degrees for portrait)
+    gantt_path = f'../public/{project_key}_gantt.png'
+    if os.path.exists(gantt_path):
+        # Rotate Gantt 90 degrees to fit portrait orientation
+        pil_img = PILImage.open(gantt_path)
+        pil_img_rotated = pil_img.rotate(90, expand=True)
+
+        # Save rotated image to buffer
+        rotated_buf = io.BytesIO()
+        pil_img_rotated.save(rotated_buf, format='PNG')
+        rotated_buf.seek(0)
+
+        img = Image(rotated_buf, width=170*mm, height=100*mm, kind='proportional')
+        story.append(img)
+    else:
+        story.append(Paragraph("Gantt chart not found. Run generate_gantt.py first.", styles['Normal']))
 
     # Add page break before Epic Breakdown
     story.append(PageBreak())
@@ -409,7 +418,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         epic_table_styles.append(('BACKGROUND', (0, row_idx), (0, row_idx), epic_colour))
         epic_table_styles.append(('TEXTCOLOR', (0, row_idx), (0, row_idx), colors.white))
 
-    epic_table = Table(epic_table_data, colWidths=[25*mm, 65*mm, 18*mm, 18*mm, 18*mm, 18*mm, 18*mm])
+    epic_table = Table(epic_table_data, colWidths=[22*mm, 55*mm, 16*mm, 16*mm, 16*mm, 16*mm, 16*mm])
     epic_table.setStyle(TableStyle(epic_table_styles))
 
     story.append(epic_table)
