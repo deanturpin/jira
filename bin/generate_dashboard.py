@@ -566,7 +566,7 @@ def generate_project_dashboard(client, project_key, board_id, team_size, jira_ur
     velocity_stats = velocity_calc.calculate_velocity_stats(velocity_data)
 
     # Apply target velocity if set
-    velocity_override = os.getenv('VELOCITY_OVERRIDE')
+    velocity_override = os.getenv('TARGET_VELOCITY') or os.getenv('VELOCITY_OVERRIDE')  # Support old name for compatibility
     is_target_velocity = bool(velocity_override)
     if velocity_override:
         actual_velocity = velocity_stats['mean']

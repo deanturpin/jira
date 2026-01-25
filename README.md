@@ -71,7 +71,7 @@ SPRINT_LENGTH_WEEKS_2=1
 # Target Velocity (optional)
 # If set, uses this target velocity for planning instead of historical average
 # Displays as "target velocity (actual: X)" in reports
-# VELOCITY_OVERRIDE=11
+# TARGET_VELOCITY=11
 
 RESEND_API_KEY=re_xxxxx
 
@@ -212,7 +212,7 @@ The dashboard filters out epics where `remaining == 0`. If an epic still appears
 - Uses last 6 months of completed sprints by default
 - Calculates mean, median, and standard deviation
 - Only counts story points from completed issues (status: done/closed/resolved)
-- **Target Velocity**: Set `VELOCITY_OVERRIDE` in `.env` to use a target velocity for planning (useful for setting ambitious goals or when historical data is unreliable; displays as "target velocity (actual: X)" in reports)
+- **Target Velocity**: Set `TARGET_VELOCITY` in `.env` to use a target velocity for planning (useful for setting ambitious goals or when historical data is unreliable; displays as "target velocity (actual: X)" in reports)
 
 ### Epic Timeline Projection
 

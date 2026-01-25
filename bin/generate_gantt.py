@@ -148,7 +148,7 @@ def generate_project_gantt(client, project_key, board_id, team_size):
     velocity_stats = velocity_calc.calculate_velocity_stats(velocity_data)
 
     # Apply target velocity if set
-    velocity_override = os.getenv('VELOCITY_OVERRIDE')
+    velocity_override = os.getenv('TARGET_VELOCITY') or os.getenv('VELOCITY_OVERRIDE')  # Support old name for compatibility
     if velocity_override:
         actual_velocity = velocity_stats['mean']
         velocity_stats['mean'] = float(velocity_override)

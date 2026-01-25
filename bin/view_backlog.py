@@ -179,7 +179,7 @@ def main():
 
     # If no limit specified, use velocity override or calculate average velocity
     if limit_points is None and limit_count is None:
-        velocity_override = os.getenv('VELOCITY_OVERRIDE')
+        velocity_override = os.getenv('TARGET_VELOCITY') or os.getenv('VELOCITY_OVERRIDE')  # Support old name for compatibility
 
         if velocity_override:
             limit_points = float(velocity_override)
