@@ -221,8 +221,8 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
                     'colour': epic_colour
                 })
 
-    # Sort by progress percentage (least progress first) to highlight blocked epics
-    epic_data.sort(key=lambda e: e['progress_pct'])
+    # Sort by remaining work (most first) to prioritise high-value epics
+    epic_data.sort(key=lambda e: e['remaining_points'], reverse=True)
 
     # Calculate parallel completion dates
     from datetime import datetime, timedelta

@@ -754,8 +754,8 @@ def generate_project_dashboard(client, project_key, board_id, team_size, jira_ur
                     'colour': 'color_4'  # Default blue for no-epic items
                 })
 
-    # Sort by progress percentage (least progress first) to highlight blocked epics
-    epic_data.sort(key=lambda e: e['pct'])
+    # Sort by remaining work (most first) to prioritise high-value epics
+    epic_data.sort(key=lambda e: e['remaining'], reverse=True)
 
     # Calculate parallel completion dates using same logic as Gantt chart
     from datetime import datetime, timedelta
