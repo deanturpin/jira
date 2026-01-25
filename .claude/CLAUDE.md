@@ -15,6 +15,8 @@ This project generates automated Jira planning dashboards with velocity tracking
 - `bin/generate_gantt.py` - Gantt chart generator (PNG output)
 - `bin/jira_client.py` - Jira REST API client
 - `bin/velocity_calculator.py` - Sprint velocity calculations
+- `bin/view_backlog.py` - Sprint planning tool (shows top backlog issues by velocity)
+- `bin/close_sprint.py` - Sprint closure automation tool
 - `bin/inspect_fields.py` - Debug tool for identifying custom field IDs
 - `bin/debug_sprint_details.py` - Debug tool for sprint analysis
 
@@ -32,10 +34,11 @@ When adding support for new boards, use `inspect_fields.py [board_id]` to identi
 
 ### Velocity Calculation
 
-- Uses last 6 months of completed sprints
+- Uses last 6 months of completed sprints by default
 - Only counts story points from completed issues (status: done/closed/resolved)
 - Calculates mean, median, and standard deviation
 - Does NOT factor in team size (historical velocity already reflects team capacity)
+- **Velocity Override**: Set `VELOCITY_OVERRIDE` in `.env` to use a fixed velocity instead of calculating from historical sprints (useful for new teams or unreliable historical data)
 
 ### Epic Timeline Projection
 

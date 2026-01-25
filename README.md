@@ -15,7 +15,9 @@ make
 
 ## Features
 
-- **Velocity Tracking**: Historical sprint velocity with 6-month lookback window
+- **Velocity Tracking**: Historical sprint velocity with 6-month lookback window (or use fixed override)
+- **Sprint Planning**: View top backlog issues based on team velocity
+- **Sprint Automation**: Automated sprint closure with issue tracking
 - **Epic Planning**: Remaining work breakdown with child task details
 - **Timeline Projections**: Gantt charts showing sequential epic completion dates
 - **Multi-Project Support**: Configure multiple projects with numbered environment variables
@@ -66,6 +68,10 @@ JIRA_BOARD_ID_2=456
 TEAM_SIZE_2=3
 SPRINT_LENGTH_WEEKS_2=1
 
+# Velocity Override (optional)
+# If set, uses this fixed velocity instead of calculating from historical sprints
+# VELOCITY_OVERRIDE=11
+
 RESEND_API_KEY=re_xxxxx
 
 # Email Configuration (optional)
@@ -73,6 +79,8 @@ EMAIL_CC=colleague1@example.com,colleague2@example.com
 ```
 
 ## Usage
+
+### Dashboard Generation
 
 ```bash
 make              # Generate dashboard and Gantt chart for all projects
@@ -84,6 +92,29 @@ make help         # Show all available commands
 ```
 
 Outputs saved to `public/` directory.
+
+### Sprint Planning
+
+View top backlog issues for next sprint (based on velocity):
+
+```bash
+source venv/bin/activate
+python bin/view_backlog.py [board_id]              # Use calculated or override velocity
+python bin/view_backlog.py [board_id] --details    # Show priority and labels
+python bin/view_backlog.py [board_id] --points 20  # Custom point limit
+python bin/view_backlog.py [board_id] --count 10   # Custom issue count
+```
+
+### Sprint Closure
+
+Close active sprint and move incomplete issues to backlog:
+
+```bash
+source venv/bin/activate
+python bin/close_sprint.py [board_id]              # Interactive confirmation
+python bin/close_sprint.py [board_id] --dry-run    # Preview without changes
+python bin/close_sprint.py [board_id] --yes        # Skip confirmation
+```
 
 ### Daily Email Reports
 
@@ -177,9 +208,10 @@ The dashboard filters out epics where `remaining == 0`. If an epic still appears
 
 ### Velocity Calculation
 
-- Uses last 6 months of completed sprints
+- Uses last 6 months of completed sprints by default
 - Calculates mean, median, and standard deviation
 - Only counts story points from completed issues (status: done/closed/resolved)
+- **Override**: Set `VELOCITY_OVERRIDE` in `.env` to use a fixed velocity (useful for new teams or unreliable historical data)
 
 ### Epic Timeline Projection
 
@@ -195,6 +227,8 @@ Note: Story point estimates often take ~2x longer than intuitive time estimates 
 
 - `bin/inspect_fields.py [board_id]` - Show all custom fields in a sample issue
 - `bin/debug_sprint_details.py` - Show last 5 sprints with completion data
+- `bin/view_backlog.py [board_id]` - Sprint planning tool (view top backlog issues)
+- `bin/close_sprint.py [board_id]` - Sprint closure automation tool
 
 ## Licence
 
