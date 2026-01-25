@@ -101,7 +101,7 @@ def create_header_footer(canvas_obj, doc):
     canvas_obj.restoreState()
 
 
-def generate_project_pdf(client, project_key, board_id, team_size, jira_url):
+def generate_project_pdf(client, project_key, board_id, team_size, jira_url, target_velocity=None):
     """Generate PDF report for a single project."""
 
     # Get velocity data
@@ -109,6 +109,17 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url):
     velocity_calc = VelocityCalculator(client)
     velocity_data = velocity_calc.get_historical_velocity(board_id, months=6)
     velocity_stats = velocity_calc.calculate_velocity_stats(velocity_data)
+
+    # Apply target velocity if set (prefer parameter over environment variable)
+    if target_velocity is None:
+        target_velocity = os.getenv('TARGET_VELOCITY') or os.getenv('VELOCITY_OVERRIDE')  # Fallback to old name
+        if target_velocity:
+            target_velocity = float(target_velocity)
+
+    actual_velocity = velocity_stats['mean']
+    is_target_velocity = bool(target_velocity)
+    if target_velocity:
+        velocity_stats['mean'] = target_velocity
 
     avg_velocity = velocity_stats['mean']
 
@@ -274,11 +285,17 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url):
     story.append(Spacer(1, 10*mm))
 
     # Metrics summary table
+    velocity_label = 'Target Velocity' if is_target_velocity else 'Average Velocity'
+    if is_target_velocity:
+        velocity_text = f'{avg_velocity:.0f} pts/sprint (target)\n{actual_velocity:.0f} pts/sprint (actual)'
+    else:
+        velocity_text = f'{avg_velocity:.0f} pts/sprint\n± {velocity_stats["std_dev"]:.0f}'
+
     metrics_data = [
-        ['Team Size', 'Average Velocity', 'Remaining Work', 'Projected Completion'],
+        ['Team Size', velocity_label, 'Remaining Work', 'Projected Completion'],
         [
             f'{team_size} developers',
-            f'{avg_velocity:.0f} pts/sprint\n± {velocity_stats["std_dev"]:.0f}',
+            velocity_text,
             f'{total_remaining:.0f} points\n{len(epic_data)} epics',
             f'{final_completion}\n~{sprints_remaining} sprints'
         ]

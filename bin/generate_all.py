@@ -119,7 +119,8 @@ def main():
             project['key'],
             project['board_id'],
             project['team_size'],
-            jira_url
+            jira_url,
+            project.get('target_velocity')
         )
         pdf_files.append(pdf_file)
 
