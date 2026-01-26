@@ -1,10 +1,7 @@
 .PHONY: all dashboard velocity report epics gantt pdf clean help deploy
 
-# Source files that trigger rebuilds
-SOURCES = bin/*.py .env
-
 # Default target - generate everything in one pass
-all: $(SOURCES)
+all:
 	@echo "Generating all planning outputs..."
 	@cd bin && ../venv/bin/python generate_all.py
 
