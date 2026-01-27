@@ -173,17 +173,23 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         json={
             'jql': f'project = {project_key.upper()} AND type = Epic',
             'maxResults': 200,
-            'fields': ['summary', 'status']
+            'fields': ['summary', 'status', 'customfield_10021']  # customfield_10021 is Flagged
         }
     )
 
     # Combine: board epics have colour, JQL epics fill gaps
     epics = list(board_epics)  # Start with board epics (have colours)
 
+    # Create flagged status lookup from JQL response
+    flagged_epics = {}
     if jql_response.status_code == 200:
         jql_epics = jql_response.json().get('issues', [])
-        # Add epics from JQL that aren't in board (won't have colour)
         for issue in jql_epics:
+            # Store flagged status (customfield_10021)
+            is_flagged = issue['fields'].get('customfield_10021') is not None
+            flagged_epics[issue['key']] = is_flagged
+
+            # Add epics from JQL that aren't in board (won't have colour)
             if issue['key'] not in board_epic_keys:
                 status_name = issue['fields'].get('status', {}).get('name', '').lower()
                 is_done = status_name in ['done', 'closed', 'resolved']
@@ -437,9 +443,14 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         # Calculate weeks for 1 developer (sprints are 1 week each)
         weeks_needed = epic['remaining_points'] / per_dev_velocity if per_dev_velocity > 0 else 0
 
+        # Add flag indicator if epic is flagged
+        epic_name = epic['epic_name']
+        if flagged_epics.get(epic['epic_key'], False):
+            epic_name = f"⚠ {epic_name}"
+
         epic_table_data.append([
             epic['epic_key'],
-            epic['epic_name'][:35] + '...' if len(epic['epic_name']) > 35 else epic['epic_name'],
+            epic_name[:37] + '...' if len(epic_name) > 37 else epic_name,
             f"{epic['remaining_points']:.0f}",
             f"{epic['completed_points']:.0f}",
             f"{epic['total_points']:.0f}",
