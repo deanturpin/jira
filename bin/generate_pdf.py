@@ -328,6 +328,16 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         alignment=TA_CENTER
     )
     story.append(Paragraph(f"{project_key.upper()} Planning Report", title_style))
+
+    # Timestamp
+    timestamp_style = ParagraphStyle(
+        'Timestamp',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.grey,
+        alignment=TA_CENTER
+    )
+    story.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", timestamp_style))
     story.append(Spacer(1, 5*mm))
 
     # Metrics summary table (portrait-optimised)
