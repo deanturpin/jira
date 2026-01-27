@@ -85,13 +85,12 @@ def create_gantt_chart(epic_timeline, velocity_stats, project_key, team_size):
         ax.barh(y_pos, duration, left=start_date, height=0.8,
                 color=colour, alpha=0.7, edgecolor='black', linewidth=1)
 
-        # Add epic label with developer assignment
+        # Add epic label
         epic_name_short = epic['epic_name'][:25] if len(epic['epic_name']) > 25 else epic['epic_name']
         label = f"{epic['epic_key']}"
         points_label = f"{epic['remaining_points']:.0f} pts"
-        dev_label = f"Dev {track + 1}"
 
-        y_labels.append(f"[{dev_label}] {label}: {epic_name_short}\n({points_label})")
+        y_labels.append(f"{label}: {epic_name_short}\n({points_label})")
         y_ticks.append(y_pos)
 
         # Add epic name inside bar if there's room
