@@ -445,9 +445,14 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
 
         # Add flag indicator if epic is flagged
         epic_name = epic['epic_name']
-        epic_key_display = epic['epic_key']
+        epic_key_text = epic['epic_key']
         if flagged_epics.get(epic['epic_key'], False):
-            epic_key_display = f"{epic['epic_key']} 🛑"  # Stop sign after epic number
+            epic_key_text = f"{epic['epic_key']} 🛑"  # Stop sign after epic number
+
+        # Create clickable link to Jira epic
+        epic_url = f"{jira_url}/browse/{epic['epic_key']}"
+        epic_key_link = f'<link href="{epic_url}" color="white">{epic_key_text}</link>'
+        epic_key_display = Paragraph(epic_key_link, styles['Normal'])
 
         epic_table_data.append([
             epic_key_display,
