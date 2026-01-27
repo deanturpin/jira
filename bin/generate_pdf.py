@@ -116,8 +116,17 @@ def create_header_footer(canvas_obj, doc):
     canvas_obj.restoreState()
 
 
-def generate_project_pdf(client, project_key, board_id, team_size, jira_url, target_velocity=None):
-    """Generate PDF report for a single project."""
+def generate_project_pdf(client, project_key, board_id, team_size, jira_url, target_velocity=None, exclude_epics=None):
+    """Generate PDF report for a single project.
+
+    Args:
+        exclude_epics: List of epic numbers to exclude (e.g., ['123', '456'])
+    """
+    if exclude_epics is None:
+        exclude_epics = []
+
+    # Convert to full epic keys for filtering
+    exclude_keys = {f"{project_key.upper()}-{num}" for num in exclude_epics}
 
     # Get velocity data
     print("Fetching velocity data...")
@@ -186,7 +195,10 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
                     'color': {'key': 'color_4'}  # default colour for non-board epics
                 })
 
-    active_epics = [e for e in epics if not e.get('done', False)]
+    # Filter out excluded epics
+    active_epics = [e for e in epics if not e.get('done', False) and e['key'] not in exclude_keys]
+    if exclude_keys:
+        print(f"  Excluding epics: {', '.join(sorted(exclude_keys))}")
 
     if active_epics:
 

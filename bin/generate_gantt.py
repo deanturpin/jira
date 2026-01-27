@@ -138,8 +138,17 @@ def create_gantt_chart(epic_timeline, velocity_stats, project_key, team_size):
     return fig
 
 
-def generate_project_gantt(client, project_key, board_id, team_size, target_velocity=None):
-    """Generate Gantt chart for a single project."""
+def generate_project_gantt(client, project_key, board_id, team_size, target_velocity=None, exclude_epics=None):
+    """Generate Gantt chart for a single project.
+
+    Args:
+        exclude_epics: List of epic numbers to exclude (e.g., ['123', '456'])
+    """
+    if exclude_epics is None:
+        exclude_epics = []
+
+    # Convert to full epic keys for filtering
+    exclude_keys = {f"{project_key.upper()}-{num}" for num in exclude_epics}
 
     # Get velocity data (last 6 months)
     print("Fetching velocity data...")
@@ -209,7 +218,10 @@ def generate_project_gantt(client, project_key, board_id, team_size, target_velo
                     'color': {'key': 'color_4'}  # default colour for non-board epics
                 })
 
-    active_epics = [e for e in epics if not e.get('done', False)]
+    # Filter out excluded epics
+    active_epics = [e for e in epics if not e.get('done', False) and e['key'] not in exclude_keys]
+    if exclude_keys:
+        print(f"  Excluding epics: {', '.join(sorted(exclude_keys))}")
 
     # Get remaining points for each epic
     epic_data = []

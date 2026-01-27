@@ -584,8 +584,17 @@ def generate_html_dashboard(project_key, velocity_data, velocity_stats, epic_dat
     return html
 
 
-def generate_project_dashboard(client, project_key, board_id, team_size, jira_url, target_velocity=None):
-    """Generate dashboard for a single project."""
+def generate_project_dashboard(client, project_key, board_id, team_size, jira_url, target_velocity=None, exclude_epics=None):
+    """Generate dashboard for a single project.
+
+    Args:
+        exclude_epics: List of epic numbers to exclude (e.g., ['123', '456'])
+    """
+    if exclude_epics is None:
+        exclude_epics = []
+
+    # Convert to full epic keys for filtering
+    exclude_keys = {f"{project_key.upper()}-{num}" for num in exclude_epics}
     velocity_calc = VelocityCalculator(client)
 
     # Fetch velocity data (last 6 months)
@@ -659,7 +668,10 @@ def generate_project_dashboard(client, project_key, board_id, team_size, jira_ur
 
     print(f"  Found {len(epics)} total epics ({len(board_epics)} from board, {len(epics) - len(board_epics)} from project)")
 
-    active_epics = [e for e in epics if not e.get('done', False)]
+    # Filter out excluded epics
+    active_epics = [e for e in epics if not e.get('done', False) and e['key'] not in exclude_keys]
+    if exclude_keys:
+        print(f"  Excluding epics: {', '.join(sorted(exclude_keys))}")
     print(f"  Active epics: {len(active_epics)}")
 
     epic_data = []
