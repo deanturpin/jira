@@ -447,7 +447,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         epic_name = epic['epic_name']
         epic_key_display = epic['epic_key']
         if flagged_epics.get(epic['epic_key'], False):
-            epic_key_display = f"{epic['epic_key']} !"  # Exclamation mark after epic number
+            epic_key_display = f"{epic['epic_key']} 🛑"  # Stop sign after epic number
 
         epic_table_data.append([
             epic_key_display,
