@@ -445,12 +445,13 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
 
         # Add flag indicator if epic is flagged
         epic_name = epic['epic_name']
+        epic_key_display = epic['epic_key']
         if flagged_epics.get(epic['epic_key'], False):
-            epic_name = f"⚠ {epic_name}"
+            epic_key_display = f"⚠ {epic['epic_key']}"
 
         epic_table_data.append([
-            epic['epic_key'],
-            epic_name[:37] + '...' if len(epic_name) > 37 else epic_name,
+            epic_key_display,
+            epic_name[:35] + '...' if len(epic_name) > 35 else epic_name,
             f"{epic['remaining_points']:.0f}",
             f"{epic['completed_points']:.0f}",
             f"{epic['total_points']:.0f}",
@@ -458,10 +459,17 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
             f"{weeks_needed:.1f}"
         ])
 
-        # Add colour bar to left of epic key
-        epic_colour = get_jira_colour_hex(epic['colour'])
+        # Add colour bar to left of epic key (yellow if flagged, otherwise epic colour)
+        if flagged_epics.get(epic['epic_key'], False):
+            epic_colour = colors.HexColor('#FFD700')  # Gold/yellow for flagged
+            text_colour = colors.black  # Black text on yellow
+        else:
+            epic_colour = get_jira_colour_hex(epic['colour'])
+            text_colour = colors.white
+
         epic_table_styles.append(('BACKGROUND', (0, row_idx), (0, row_idx), epic_colour))
-        epic_table_styles.append(('TEXTCOLOR', (0, row_idx), (0, row_idx), colors.white))
+        epic_table_styles.append(('TEXTCOLOR', (0, row_idx), (0, row_idx), text_colour))
+        epic_table_styles.append(('FONTSIZE', (0, row_idx), (0, row_idx), 11))  # Larger font for epic key
 
     epic_table = Table(epic_table_data, colWidths=[22*mm, 55*mm, 16*mm, 16*mm, 16*mm, 16*mm, 16*mm])
     epic_table.setStyle(TableStyle(epic_table_styles))
