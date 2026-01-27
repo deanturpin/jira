@@ -447,7 +447,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         epic_name = epic['epic_name']
         epic_key_display = epic['epic_key']
         if flagged_epics.get(epic['epic_key'], False):
-            epic_key_display = f"⚠ {epic['epic_key']}"
+            epic_key_display = f"{epic['epic_key']} ⚠"  # Icon after epic number
 
         epic_table_data.append([
             epic_key_display,
@@ -459,10 +459,10 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
             f"{weeks_needed:.1f}"
         ])
 
-        # Add colour bar to left of epic key (yellow if flagged, otherwise epic colour)
+        # Add colour bar to left of epic key (red if flagged, otherwise epic colour)
         if flagged_epics.get(epic['epic_key'], False):
-            epic_colour = colors.HexColor('#FFD700')  # Gold/yellow for flagged
-            text_colour = colors.black  # Black text on yellow
+            epic_colour = colors.HexColor('#DC143C')  # Crimson red for flagged
+            text_colour = colors.white  # White text on red
         else:
             epic_colour = get_jira_colour_hex(epic['colour'])
             text_colour = colors.white
