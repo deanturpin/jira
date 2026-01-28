@@ -15,11 +15,14 @@ make
 
 ## Features
 
-- **Velocity Tracking**: Historical sprint velocity with 6-month lookback window (or use fixed override)
+- **Velocity Tracking**: Historical sprint velocity with 6-month lookback window (or use target velocity override)
+- **Historical Trends**: Automatic statistics logging and trend visualisation to track estimate changes over time
 - **Sprint Planning**: View top backlog issues based on team velocity
 - **Sprint Automation**: Automated sprint closure with issue tracking
 - **Epic Planning**: Remaining work breakdown with child task details
-- **Timeline Projections**: Gantt charts showing sequential epic completion dates
+- **Timeline Projections**: Gantt charts showing parallel epic planning across developer swimlanes
+- **PDF Reports**: Professional reports with flagged epic indicators and clickable Jira links
+- **Epic Exclusion**: Filter out specific epics from all reports (useful for maintenance epics or out-of-scope work)
 - **Multi-Project Support**: Configure multiple projects with numbered environment variables
 - **Flexible Story Points**: Automatically detects story point fields (customfield_10016, 10026, 10031)
 - **No Epic Tracking**: Identifies and tracks stories without parent epics
@@ -74,6 +77,11 @@ SPRINT_LENGTH_WEEKS_2=1
 # TARGET_VELOCITY_1=11
 # TARGET_VELOCITY_2=15
 
+# Exclude Epics (optional, per-project)
+# Comma-separated epic numbers to exclude from all reports
+# EXCLUDE_EPICS_1=123,456
+# EXCLUDE_EPICS_2=789
+
 RESEND_API_KEY=re_xxxxx
 
 # Email Configuration (optional)
@@ -85,10 +93,12 @@ EMAIL_CC=colleague1@example.com,colleague2@example.com
 ### Dashboard Generation
 
 ```bash
-make              # Generate dashboard and Gantt chart for all projects
+make              # Generate dashboard, Gantt chart, and PDF for all projects
 make dashboard    # HTML dashboards only
-make gantt        # Gantt charts only
+make gantt        # Gantt charts only (also logs statistics)
+make pdf          # PDF reports only
 make velocity     # Velocity chart PNG only
+make trends       # Generate trend charts from historical statistics
 make clean        # Remove all generated files
 make help         # Show all available commands
 ```
@@ -134,15 +144,30 @@ Set up automated daily reports with cron - see [CRON_SETUP.md](CRON_SETUP.md) fo
 
 ## Output Files
 
-- `public/{project}.html` - Interactive dashboard with:
+### Generated Reports (public/)
+
+- `{project}.html` - Interactive dashboard with:
   - Team size and average velocity
   - Remaining work breakdown
   - Projected completion date
   - Embedded velocity trend chart
-  - Epic breakdown table (incomplete epics only)
+  - Epic breakdown table (incomplete epics only, excludes configured epics)
   - Epic timeline with child task details
-- `public/{project}_gantt.png` - Visual Gantt chart showing sequential epic timeline
-- `public/{project}_velocity_chart.png` - Standalone velocity history chart
+- `{project}.pdf` - Professional PDF report with:
+  - Flagged epic indicators (red background with stop sign emoji)
+  - Clickable Jira links for epics
+  - Generation timestamp
+  - Landscape Gantt chart page
+- `{project}_gantt.png` - Visual Gantt chart showing parallel epic planning across developer swimlanes
+- `{project}_velocity_chart.png` - Standalone velocity history chart
+- `{project}_trends.png` - Historical trend visualisation (generated with `make trends`)
+
+### Historical Data (stats/)
+
+- `{project}_history.csv` - Automatically logged planning statistics:
+  - Timestamp, epic count, total points, completion date
+  - Team size, velocity metrics (mean, median, stddev)
+  - Target velocity and actual velocity tracking
 
 ## Dashboard Features
 
@@ -217,9 +242,46 @@ The dashboard filters out epics where `remaining == 0`. If an epic still appears
 
 ### Epic Timeline Projection
 
-- Lays out epics sequentially (not in parallel)
-- Uses average velocity for duration estimates
+- Lays out epics in parallel across developer swimlanes (based on team size)
+- Uses average velocity per developer for duration estimates
 - Sorts epics by remaining work (largest first)
+- Assigns each epic to earliest available developer track
+
+### Epic Exclusion
+
+Configure `EXCLUDE_EPICS_N` in `.env` to filter specific epics from all reports:
+
+```env
+# Exclude epics by number (not full key)
+EXCLUDE_EPICS_1=433,621,629
+```
+
+Useful for:
+
+- Maintenance epics that run continuously
+- Out-of-scope work tracked in Jira but not part of project timeline
+- Epics on hold or blocked indefinitely
+
+### Historical Statistics and Trends
+
+Planning statistics are automatically logged to `stats/{project}_history.csv` each time reports are generated. Generate trend charts to visualise how estimates change over time:
+
+```bash
+make trends
+```
+
+Trend charts show three key metrics over time:
+
+- Total remaining story points (scope tracking)
+- Number of active epics (work breakdown visibility)
+- Projected completion date (timeline drift detection)
+
+Use historical trends to:
+
+- Detect scope creep (increasing points/epics over time)
+- Track velocity changes (compare target vs actual velocity)
+- Measure estimate accuracy (how completion dates shift)
+- Identify planning patterns across sprints
 
 ### Story Point Estimation Calibration
 
