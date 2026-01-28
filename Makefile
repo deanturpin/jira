@@ -1,4 +1,4 @@
-.PHONY: all dashboard velocity report epics gantt pdf clean help deploy
+.PHONY: all dashboard velocity report epics gantt pdf trends clean help deploy
 
 # Default target - generate everything in one pass
 all:
@@ -40,6 +40,12 @@ pdf:
 	@cd bin && ../venv/bin/python generate_pdf.py
 	@echo "✓ PDF reports ready: public/*.pdf"
 
+# Trend charts
+trends:
+	@echo "Generating trend charts from historical data..."
+	@cd bin && ../venv/bin/python -c "from stats_logger import StatsLogger; import os; from dotenv import load_dotenv; load_dotenv(); logger = StatsLogger(); [logger.generate_trend_chart(os.getenv(f'JIRA_PROJECT_KEY_{i}', '').lower()) for i in range(1, 11) if os.getenv(f'JIRA_PROJECT_KEY_{i}')]"
+	@echo "✓ Trend charts ready: public/*_trends.png"
+
 # Clean generated files
 clean:
 	@echo "Cleaning generated files..."
@@ -60,6 +66,7 @@ help:
 	@echo "  make gantt        Generate Gantt chart PNG"
 	@echo "  make pdf          Generate PDF reports"
 	@echo "  make velocity     Generate velocity chart PNG"
+	@echo "  make trends       Generate trend charts from historical stats"
 	@echo "  make report       Generate Excel report"
 	@echo "  make epics        List epic remaining work (console)"
 	@echo "  make clean        Remove all generated files"

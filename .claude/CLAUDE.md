@@ -13,8 +13,11 @@ This project generates automated Jira planning dashboards with velocity tracking
 
 - `bin/generate_dashboard.py` - Main dashboard generator (HTML output)
 - `bin/generate_gantt.py` - Gantt chart generator (PNG output)
+- `bin/generate_pdf.py` - PDF report generator
+- `bin/generate_all.py` - Orchestrates all report generation in one pass
 - `bin/jira_client.py` - Jira REST API client
 - `bin/velocity_calculator.py` - Sprint velocity calculations
+- `bin/stats_logger.py` - Historical statistics tracking and trend charts
 - `bin/view_backlog.py` - Sprint planning tool (shows top backlog issues by velocity)
 - `bin/close_sprint.py` - Sprint closure automation tool
 - `bin/inspect_fields.py` - Debug tool for identifying custom field IDs
@@ -42,10 +45,18 @@ When adding support for new boards, use `inspect_fields.py [board_id]` to identi
 
 ### Epic Timeline Projection
 
-- Epics laid out sequentially (NOT in parallel)
+- Epics laid out in parallel across developer swimlanes
 - Sorted by remaining work (largest first)
 - Uses average velocity for duration estimates
 - Completion dates are projections, not commitments
+
+### Historical Statistics Tracking
+
+- Automatically logs planning stats to `stats/{project}_history.csv` on each generation run
+- Tracks: timestamp, epic count, total story points, projected completion date, total weeks, team size, velocity stats
+- Generate trend charts with `make trends` to visualize how estimates change over time
+- Trend charts show three key metrics: total points, epic count, and projected completion date
+- Useful for tracking scope creep, velocity changes, and estimate accuracy over time
 
 ### "No Epic" Tracking
 
@@ -154,11 +165,17 @@ is_complete = status in ['done', 'closed', 'resolved']
 
 ## Output Files
 
-All generated in `public/`:
+Generated in `public/`:
 
 - `{project}.html` - Interactive dashboard
 - `{project}_gantt.png` - Gantt chart
 - `{project}_velocity_chart.png` - Velocity history chart
+- `{project}.pdf` - PDF report with flagged epics and clickable links
+- `{project}_trends.png` - Historical trend chart (generated with `make trends`)
+
+Generated in `stats/`:
+
+- `{project}_history.csv` - Historical planning statistics (auto-logged on each run)
 
 ## Testing
 
@@ -174,10 +191,9 @@ When making changes:
 ## Future Enhancements to Consider
 
 - Make sprint length configurable via environment variable
-- Add support for parallel epic timelines (not just sequential)
 - Team size change detection and velocity adjustment
-- Historical team size tracking
 - Confidence intervals for completion dates
 - What-if scenario planning
 - Sprint capacity planning tool
 - Burndown chart integration
+- Automated analysis of historical trends (detect scope creep, velocity drift)

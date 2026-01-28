@@ -14,6 +14,7 @@ import requests
 
 from jira_client import JiraClient
 from velocity_calculator import VelocityCalculator
+from stats_logger import StatsLogger
 
 
 def get_jira_colour_hex(colour_key):
@@ -163,6 +164,7 @@ def generate_project_gantt(client, project_key, board_id, team_size, target_velo
 
     if target_velocity:
         actual_velocity = velocity_stats['mean']
+        velocity_stats['actual_mean'] = actual_velocity  # Store for logging
         velocity_stats['mean'] = target_velocity
         avg_velocity = velocity_stats['mean']
         print(f"Target velocity: {avg_velocity:.1f} points/sprint (actual: {actual_velocity:.1f})")
@@ -311,6 +313,16 @@ def generate_project_gantt(client, project_key, board_id, team_size, target_velo
 
         # Update track end date
         tracks[earliest_track_idx] = end_date + timedelta(days=1)
+
+    # Log statistics for historical tracking
+    logger = StatsLogger()
+    logger.log_planning_stats(
+        project_key,
+        epic_timeline,
+        velocity_stats,
+        team_size,
+        target_velocity
+    )
 
     # Generate Gantt chart
     print(f"Generating Gantt chart for {project_key.upper()}...")
