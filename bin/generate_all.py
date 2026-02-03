@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 from jira_client import JiraClient
 from velocity_calculator import VelocityCalculator
+from stats_logger import StatsLogger
 
 # Import generation functions from existing modules
 from generate_dashboard import generate_project_dashboard
@@ -107,7 +108,7 @@ def main():
         )
         dashboard_files.append(dashboard_file)
 
-        # Generate Gantt chart
+        # Generate Gantt chart (also logs statistics)
         print("\n📅 Generating Gantt chart...")
         gantt_file = generate_project_gantt(
             client,
@@ -119,6 +120,11 @@ def main():
         )
         if gantt_file:
             gantt_files.append(gantt_file)
+
+        # Generate trend chart from historical stats
+        print("\n📈 Generating trend chart...")
+        logger = StatsLogger()
+        trends_file = logger.generate_trend_chart(project['key'])
 
         # Generate PDF report
         print("\n📄 Generating PDF report...")

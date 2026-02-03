@@ -481,6 +481,21 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
 
     story.append(epic_table)
 
+    # Add historical trends chart if it exists
+    trends_path = f'../public/{project_key}_trends.png'
+    if os.path.exists(trends_path):
+        story.append(PageBreak())
+        story.append(Paragraph('Historical Planning Trends', title_style))
+        story.append(Spacer(1, 5*mm))
+        trends_img = Image(trends_path, width=170*mm, height=127.5*mm, kind='proportional')
+        story.append(trends_img)
+        story.append(Spacer(1, 3*mm))
+        story.append(Paragraph(
+            "Tracks how planning estimates change over time. "
+            "Use to detect scope creep, velocity drift, and estimate accuracy.",
+            ParagraphStyle('small', parent=styles['Normal'], fontSize=8, textColor=colors.grey)
+        ))
+
     # Build PDF
     doc.build(story, onFirstPage=create_header_footer, onLaterPages=create_header_footer)
 

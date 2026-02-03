@@ -64,6 +64,9 @@ def create_gantt_chart(epic_timeline, velocity_stats, project_key, team_size):
     y_ticks = []
     current_track = -1
 
+    # Track positions for alternating background colors
+    track_positions = {}
+
     for epic in epics_with_work:
         start_date = datetime.fromisoformat(epic['start_date'])
         end_date = datetime.fromisoformat(epic['end_date'])
@@ -73,6 +76,11 @@ def create_gantt_chart(epic_timeline, velocity_stats, project_key, team_size):
         track = epic.get('track', 0)
         epic_colour_key = epic.get('colour', 'color_4')
         colour = get_jira_colour_hex(epic_colour_key)
+
+        # Track the start and end positions for each track
+        if track not in track_positions:
+            track_positions[track] = {'start': y_pos, 'end': y_pos}
+        track_positions[track]['end'] = y_pos
 
         # Add separator line between tracks
         if track != current_track and current_track >= 0:
@@ -108,6 +116,18 @@ def create_gantt_chart(epic_timeline, velocity_stats, project_key, team_size):
                    fontsize=9, color='white')
 
         y_pos += 1
+
+    # Add alternating background colors for swimlanes
+    for track, positions in track_positions.items():
+        # Alternate between light grey and white
+        if track % 2 == 0:
+            bg_color = '#f5f5f5'  # Light grey
+        else:
+            bg_color = '#ffffff'  # White
+
+        # Draw background rectangle spanning the full width
+        ax.axhspan(positions['start'] - 0.5, positions['end'] + 0.5,
+                   facecolor=bg_color, alpha=0.3, zorder=0)
 
     # Format x-axis as dates
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
