@@ -5,6 +5,7 @@ import os
 import sys
 import io
 import base64
+import math
 from datetime import datetime
 from dotenv import load_dotenv
 from reportlab.lib.pagesizes import A4, landscape
@@ -441,7 +442,9 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         row_idx = idx + 1  # +1 because of header row
 
         # Calculate weeks for 1 developer (sprints are 1 week each)
+        # Round up to next whole week
         weeks_needed = epic['remaining_points'] / per_dev_velocity if per_dev_velocity > 0 else 0
+        weeks_needed = math.ceil(weeks_needed)
 
         # Add flag indicator if epic is flagged
         epic_name = epic['epic_name']
@@ -461,7 +464,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
             f"{epic['completed_points']:.0f}",
             f"{epic['total_points']:.0f}",
             f"{epic['progress_pct']:.0f}%",
-            f"{weeks_needed:.1f}"
+            f"{weeks_needed}"
         ])
 
         # Add colour bar to left of epic key (red if flagged, otherwise epic colour)
