@@ -117,17 +117,12 @@ def create_gantt_chart(epic_timeline, velocity_stats, project_key, team_size):
 
         y_pos += 1
 
-    # Add alternating background colors for swimlanes
+    # Add alternating background colours for swimlanes
+    swimlane_colours = ['#e8eeff', '#fff8e8']  # Alternating blue-tint / cream
     for track, positions in track_positions.items():
-        # Alternate between light grey and white
-        if track % 2 == 0:
-            bg_color = '#f5f5f5'  # Light grey
-        else:
-            bg_color = '#ffffff'  # White
-
-        # Draw background rectangle spanning the full width
+        bg_color = swimlane_colours[track % 2]
         ax.axhspan(positions['start'] - 0.5, positions['end'] + 0.5,
-                   facecolor=bg_color, alpha=0.3, zorder=0)
+                   facecolor=bg_color, alpha=0.8, zorder=0)
 
     # Format x-axis as dates
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
