@@ -174,21 +174,27 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         json={
             'jql': f'project = {project_key.upper()} AND type = Epic',
             'maxResults': 200,
-            'fields': ['summary', 'status', 'customfield_10021']  # customfield_10021 is Flagged
+            'fields': ['summary', 'status', 'customfield_10021', 'priority']  # customfield_10021 is Flagged
         }
     )
 
     # Combine: board epics have colour, JQL epics fill gaps
     epics = list(board_epics)  # Start with board epics (have colours)
 
-    # Create flagged status lookup from JQL response
+    # Create flagged status and priority lookups from JQL response
     flagged_epics = {}
+    epic_priorities = {}
     if jql_response.status_code == 200:
         jql_epics = jql_response.json().get('issues', [])
         for issue in jql_epics:
             # Store flagged status (customfield_10021)
             is_flagged = issue['fields'].get('customfield_10021') is not None
             flagged_epics[issue['key']] = is_flagged
+
+            # Store priority
+            priority = issue['fields'].get('priority', {})
+            if priority:
+                epic_priorities[issue['key']] = priority.get('name', '-')
 
             # Add epics from JQL that aren't in board (won't have colour)
             if issue['key'] not in board_epic_keys:
@@ -258,6 +264,12 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
 
     # Sort by remaining work (most first) to prioritise high-value epics
     epic_data.sort(key=lambda e: e['remaining_points'], reverse=True)
+
+    # Log epic stats and get deltas from previous run
+    from stats_logger import StatsLogger
+    logger = StatsLogger()
+    epic_deltas = logger.get_epic_deltas(project_key)
+    logger.log_epic_stats(project_key, epic_data)
 
     # Calculate parallel completion dates
     from datetime import datetime, timedelta
@@ -417,7 +429,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
 
     # Epic breakdown table
     epic_table_data = [
-        ['Epic', 'Name', 'Remaining', 'Completed', 'Total', 'Progress', 'Weeks']
+        ['Epic', 'Name', 'Priority', 'Remaining', 'Completed', 'Total', 'Progress', 'Δ', 'Weeks']
     ]
 
     # Build table and collect colour styling
@@ -457,15 +469,39 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         epic_key_link = f'<link href="{epic_url}" color="white">{epic_key_text}</link>'
         epic_key_display = Paragraph(epic_key_link, styles['Normal'])
 
+        # Calculate delta from previous run
+        delta = epic_deltas.get(epic['epic_key'], None)
+        if delta is None:
+            delta_text = '-'
+            delta_color = colors.grey
+        elif delta < 0:
+            delta_text = f"{delta:.0f}"  # Negative means closer to done (good)
+            delta_color = colors.green
+        elif delta > 0:
+            delta_text = f"+{delta:.0f}"  # Positive means scope increase (bad)
+            delta_color = colors.red
+        else:
+            delta_text = "0"
+            delta_color = colors.HexColor('#FFA500')  # Orange/yellow
+
+        # Get priority for this epic
+        priority = epic_priorities.get(epic['epic_key'], '-')
+
         epic_table_data.append([
             epic_key_display,
             epic_name[:35] + '...' if len(epic_name) > 35 else epic_name,
+            priority,
             f"{epic['remaining_points']:.0f}",
             f"{epic['completed_points']:.0f}",
             f"{epic['total_points']:.0f}",
             f"{epic['progress_pct']:.0f}%",
+            delta_text,
             f"{weeks_needed}"
         ])
+
+        # Style delta column (now column 7 after adding priority)
+        epic_table_styles.append(('TEXTCOLOR', (7, row_idx), (7, row_idx), delta_color))
+        epic_table_styles.append(('FONTNAME', (7, row_idx), (7, row_idx), 'Helvetica-Bold'))
 
         # Add colour bar to left of epic key (red if flagged, otherwise epic colour)
         if flagged_epics.get(epic['epic_key'], False):
@@ -479,7 +515,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         epic_table_styles.append(('TEXTCOLOR', (0, row_idx), (0, row_idx), text_colour))
         epic_table_styles.append(('FONTSIZE', (0, row_idx), (0, row_idx), 11))  # Larger font for epic key
 
-    epic_table = Table(epic_table_data, colWidths=[22*mm, 55*mm, 16*mm, 16*mm, 16*mm, 16*mm, 16*mm])
+    epic_table = Table(epic_table_data, colWidths=[20*mm, 42*mm, 18*mm, 14*mm, 14*mm, 14*mm, 14*mm, 11*mm, 12*mm])
     epic_table.setStyle(TableStyle(epic_table_styles))
 
     story.append(epic_table)

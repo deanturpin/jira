@@ -15,6 +15,85 @@ class StatsLogger:
         self.stats_dir = Path(stats_dir)
         self.stats_dir.mkdir(exist_ok=True)
 
+    def log_epic_stats(self, project_key, epic_data):
+        """Log per-epic statistics to track progress over time.
+
+        Args:
+            project_key: Project identifier
+            epic_data: List of epic data dicts with keys: epic_key, epic_name,
+                      remaining_points, completed_points, total_points, progress_pct
+        """
+        epic_stats_file = self.stats_dir / f"{project_key}_epics_history.csv"
+        timestamp = datetime.now().isoformat()
+
+        # Check if file exists to determine if we need headers
+        file_exists = epic_stats_file.exists()
+
+        # Write epic stats
+        with open(epic_stats_file, 'a', newline='') as f:
+            fieldnames = ['timestamp', 'epic_key', 'epic_name', 'remaining_points',
+                         'completed_points', 'total_points', 'progress_pct']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+
+            if not file_exists:
+                writer.writeheader()
+
+            for epic in epic_data:
+                writer.writerow({
+                    'timestamp': timestamp,
+                    'epic_key': epic['epic_key'],
+                    'epic_name': epic['epic_name'],
+                    'remaining_points': epic['remaining_points'],
+                    'completed_points': epic['completed_points'],
+                    'total_points': epic['total_points'],
+                    'progress_pct': epic['progress_pct']
+                })
+
+    def get_epic_deltas(self, project_key):
+        """Get the change in remaining points for each epic since last run.
+
+        Returns:
+            Dict mapping epic_key to delta in remaining_points.
+            Negative = epic got closer to completion (good)
+            Positive = epic got further away (scope increase)
+            Zero = no change
+        """
+        epic_stats_file = self.stats_dir / f"{project_key}_epics_history.csv"
+
+        if not epic_stats_file.exists():
+            return {}
+
+        with open(epic_stats_file, 'r') as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+
+        if len(rows) < 2:
+            return {}
+
+        # Get unique timestamps (sorted)
+        timestamps = sorted(set(r['timestamp'] for r in rows))
+        if len(timestamps) < 2:
+            return {}
+
+        latest = timestamps[-1]
+        previous = timestamps[-2]
+
+        # Build maps of epic_key -> remaining_points for each timestamp
+        latest_epics = {r['epic_key']: float(r['remaining_points'])
+                       for r in rows if r['timestamp'] == latest}
+        previous_epics = {r['epic_key']: float(r['remaining_points'])
+                         for r in rows if r['timestamp'] == previous}
+
+        # Calculate deltas
+        deltas = {}
+        for epic_key, current_remaining in latest_epics.items():
+            if epic_key in previous_epics:
+                delta = current_remaining - previous_epics[epic_key]
+                deltas[epic_key] = delta
+            # If epic is new, no delta
+
+        return deltas
+
     def log_planning_stats(self, project_key, epic_timeline, velocity_stats, team_size, target_velocity=None):
         """Log current planning statistics to CSV file.
 
