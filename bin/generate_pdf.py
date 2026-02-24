@@ -484,8 +484,38 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
             delta_text = "0"
             delta_color = colors.HexColor('#FFA500')  # Orange/yellow
 
-        # Get priority for this epic
-        priority = epic_priorities.get(epic['epic_key'], '-')
+        # Get priority symbol for this epic
+        priority_name = epic_priorities.get(epic['epic_key'], '')
+        priority_symbols = {
+            'Highest': '▲▲',
+            'Critical': '▲▲',
+            'High': '▲',
+            'Major': '▲',     # Your Jira uses Major
+            'Medium': '■',
+            'Normal': '■',
+            'Low': '▼',
+            'Minor': '▼',     # Your Jira uses Minor
+            'Lowest': '▼▼',
+            'Trivial': '▼▼'
+        }
+        priority_text = priority_symbols.get(priority_name, priority_name if priority_name else '-')
+
+        # Create styled priority based on level
+        priority_colors = {
+            'Highest': colors.red,
+            'Critical': colors.red,
+            'High': colors.orange,
+            'Major': colors.orange,
+            'Medium': colors.HexColor('#FFA500'),
+            'Normal': colors.HexColor('#FFA500'),
+            'Low': colors.green,
+            'Minor': colors.green,
+            'Lowest': colors.blue,
+            'Trivial': colors.blue
+        }
+        priority_color = priority_colors.get(priority_name, colors.black)
+        priority_style = ParagraphStyle('priority', parent=styles['Normal'], textColor=priority_color, alignment=TA_CENTER, fontSize=12)
+        priority = Paragraph(priority_text, priority_style)
 
         epic_table_data.append([
             epic_key_display,
