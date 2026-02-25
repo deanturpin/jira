@@ -252,6 +252,12 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
             remaining_points = total_points - completed_points
 
             if remaining_points > 0:
+                # Get priority number for sorting (lower number = higher priority)
+                priority_name = epic_priorities.get(epic_key, '')
+                priority_num = {'Highest': 1, 'Critical': 1, 'High': 2, 'Major': 2,
+                               'Medium': 3, 'Normal': 3, 'Low': 4, 'Minor': 4,
+                               'Lowest': 5, 'Trivial': 5}.get(priority_name, 99)
+
                 epic_data.append({
                     'epic_key': epic_key,
                     'epic_name': epic_name,
@@ -259,11 +265,12 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
                     'completed_points': completed_points,
                     'remaining_points': remaining_points,
                     'progress_pct': (completed_points / total_points * 100) if total_points > 0 else 0,
-                    'colour': epic_colour
+                    'colour': epic_colour,
+                    'priority_num': priority_num
                 })
 
-    # Sort by remaining work (most first) to prioritise high-value epics
-    epic_data.sort(key=lambda e: e['remaining_points'], reverse=True)
+    # Sort by priority first (lower number = higher priority), then by remaining work
+    epic_data.sort(key=lambda e: (e['priority_num'], -e['remaining_points']))
 
     # Log epic stats and get deltas from previous run
     from stats_logger import StatsLogger
@@ -429,7 +436,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
 
     # Epic breakdown table
     epic_table_data = [
-        ['Epic', 'Name', 'Priority', 'Remaining', 'Completed', 'Total', 'Progress', 'Δ', 'Weeks']
+        ['Epic', 'Name', 'P', 'Status', 'Remaining', 'Completed', 'Total', 'Progress', 'Δ', 'Weeks']
     ]
 
     # Build table and collect colour styling
@@ -484,43 +491,37 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
             delta_text = "0"
             delta_color = colors.HexColor('#FFA500')  # Orange/yellow
 
-        # Get priority symbol for this epic
+        # Get priority as number (1-5, where 1 is highest)
         priority_name = epic_priorities.get(epic['epic_key'], '')
-        priority_symbols = {
-            'Highest': '▲▲',
-            'Critical': '▲▲',
-            'High': '▲',
-            'Major': '▲',     # Your Jira uses Major
-            'Medium': '■',
-            'Normal': '■',
-            'Low': '▼',
-            'Minor': '▼',     # Your Jira uses Minor
-            'Lowest': '▼▼',
-            'Trivial': '▼▼'
+        priority_numbers = {
+            'Highest': '1',
+            'Critical': '1',
+            'High': '2',
+            'Major': '2',
+            'Medium': '3',
+            'Normal': '3',
+            'Low': '4',
+            'Minor': '4',
+            'Lowest': '5',
+            'Trivial': '5'
         }
-        priority_text = priority_symbols.get(priority_name, priority_name if priority_name else '-')
+        priority = priority_numbers.get(priority_name, '-')
 
-        # Create styled priority based on level
-        priority_colors = {
-            'Highest': colors.red,
-            'Critical': colors.red,
-            'High': colors.orange,
-            'Major': colors.orange,
-            'Medium': colors.HexColor('#FFA500'),
-            'Normal': colors.HexColor('#FFA500'),
-            'Low': colors.green,
-            'Minor': colors.green,
-            'Lowest': colors.blue,
-            'Trivial': colors.blue
-        }
-        priority_color = priority_colors.get(priority_name, colors.black)
-        priority_style = ParagraphStyle('priority', parent=styles['Normal'], textColor=priority_color, alignment=TA_CENTER, fontSize=12)
-        priority = Paragraph(priority_text, priority_style)
+        # Status traffic light based on delta
+        if delta is None:
+            status = '-'  # No data yet
+        elif delta < 0:
+            status = '●'  # Green circle = progressing (remaining decreased)
+        elif delta > 0:
+            status = '●'  # Red circle = scope increase (remaining increased)
+        else:
+            status = '●'  # Amber circle = stalled (no change)
 
         epic_table_data.append([
             epic_key_display,
             epic_name[:35] + '...' if len(epic_name) > 35 else epic_name,
             priority,
+            status,
             f"{epic['remaining_points']:.0f}",
             f"{epic['completed_points']:.0f}",
             f"{epic['total_points']:.0f}",
@@ -529,9 +530,14 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
             f"{weeks_needed}"
         ])
 
-        # Style delta column (now column 7 after adding priority)
-        epic_table_styles.append(('TEXTCOLOR', (7, row_idx), (7, row_idx), delta_color))
-        epic_table_styles.append(('FONTNAME', (7, row_idx), (7, row_idx), 'Helvetica-Bold'))
+        # Style status column (column 3) based on delta
+        status_color = colors.grey if delta is None else (colors.green if delta < 0 else (colors.red if delta > 0 else colors.HexColor('#FFA500')))
+        epic_table_styles.append(('TEXTCOLOR', (3, row_idx), (3, row_idx), status_color))
+        epic_table_styles.append(('FONTSIZE', (3, row_idx), (3, row_idx), 14))
+
+        # Style delta column (now column 8 after adding priority and status)
+        epic_table_styles.append(('TEXTCOLOR', (8, row_idx), (8, row_idx), delta_color))
+        epic_table_styles.append(('FONTNAME', (8, row_idx), (8, row_idx), 'Helvetica-Bold'))
 
         # Add colour bar to left of epic key (red if flagged, otherwise epic colour)
         if flagged_epics.get(epic['epic_key'], False):
@@ -545,7 +551,7 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         epic_table_styles.append(('TEXTCOLOR', (0, row_idx), (0, row_idx), text_colour))
         epic_table_styles.append(('FONTSIZE', (0, row_idx), (0, row_idx), 11))  # Larger font for epic key
 
-    epic_table = Table(epic_table_data, colWidths=[20*mm, 42*mm, 18*mm, 14*mm, 14*mm, 14*mm, 14*mm, 11*mm, 12*mm])
+    epic_table = Table(epic_table_data, colWidths=[18*mm, 38*mm, 8*mm, 10*mm, 13*mm, 13*mm, 13*mm, 13*mm, 10*mm, 11*mm])
     epic_table.setStyle(TableStyle(epic_table_styles))
 
     story.append(epic_table)
