@@ -124,6 +124,19 @@ def create_gantt_chart(epic_timeline, velocity_stats, project_key, team_size):
         ax.axhspan(positions['start'] - 0.5, positions['end'] + 0.5,
                    facecolor=bg_color, alpha=0.8, zorder=0)
 
+    # Add vertical lines for week boundaries (Mondays)
+    if epics_with_work:
+        # Get the date range from the chart
+        min_date = min(datetime.fromisoformat(e['start_date']) for e in epics_with_work)
+        max_date = max(datetime.fromisoformat(e['end_date']) for e in epics_with_work)
+
+        # Find all Mondays in the range
+        current = min_date
+        while current <= max_date:
+            if current.weekday() == 0:  # Monday
+                ax.axvline(x=current, color='#999', linewidth=1, linestyle='-', alpha=0.4, zorder=1)
+            current += timedelta(days=1)
+
     # Format x-axis as dates
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
     ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
