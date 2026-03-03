@@ -1,0 +1,81 @@
+stages:
+  - generate
+  - deploy
+
+variables:
+  PYTHON_VERSION: "3.11"
+
+.python_template:
+  image: python:${PYTHON_VERSION}
+  before_script:
+    - pip install --quiet --upgrade pip
+    - pip install --quiet -r requirements.txt
+  cache:
+    paths:
+      - .cache/pip
+
+# Generate reports and publish to Pages
+generate_reports:
+  extends: .python_template
+  stage: generate
+  script:
+    # Create output directories
+    - mkdir -p public stats
+
+    # Download previous stats from Pages for delta tracking
+    - |
+      if wget -q -O stats/prev_epics_history.csv "https://${CI_PROJECT_NAMESPACE}.gitlab.io/${CI_PROJECT_NAME}/stats/${JIRA_PROJECT_KEY_1}_epics_history.csv" 2>/dev/null; then
+        echo "Downloaded previous epic history"
+        mv stats/prev_epics_history.csv stats/${JIRA_PROJECT_KEY_1}_epics_history.csv
+      else
+        echo "No previous epic history found (first run)"
+      fi
+
+    # Generate all reports
+    - cd bin
+    - python generate_all.py
+    - cd ..
+
+    # Copy stats to public for Pages hosting (persistence)
+    - cp -r stats public/
+
+  artifacts:
+    paths:
+      - public/
+    expire_in: 30 days
+
+  rules:
+    # Run on schedule (Monday 1am GMT)
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+    # Also run on manual trigger
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+
+# Deploy to GitLab Pages
+pages:
+  stage: deploy
+  dependencies:
+    - generate_reports
+  script:
+    - echo "Deploying to GitLab Pages..."
+    - ls -lh public/
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+# Close sprint (optional - disable if not needed)
+close_sprint:
+  extends: .python_template
+  stage: generate
+  script:
+    - cd bin
+    - python close_sprint.py ${JIRA_BOARD_ID_1} --yes
+  rules:
+    # Only run on Friday schedule
+    - if: $CI_PIPELINE_SOURCE == "schedule" && $SCHEDULE_TYPE == "sprint_close"
+  when: manual
+  allow_failure: true
