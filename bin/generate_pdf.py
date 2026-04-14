@@ -435,22 +435,26 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         # Calculate completion percentage
         completion = epic['progress_pct']
 
-        # Create gradient from red (0%) to green (100%)
-        # Use HSV colour space: red=0°, green=120°
-        # Convert to RGB for reportlab
-        hue = completion * 1.2  # 0-120 degrees
-        r, g, b = 0, 0, 0
-
-        if hue <= 60:
-            # Red to yellow (0-60°)
-            r = 255
-            g = int(hue / 60 * 255)
-            b = 0
+        # Create subdued gradient from dark red (0%) through amber to dark green (100%)
+        # All colours maintain good contrast with white text
+        if completion < 33:
+            # Dark red to amber (0-33%)
+            progress = completion / 33
+            r = int(178 + (217 - 178) * progress)  # 178 -> 217
+            g = int(34 + (119 - 34) * progress)    # 34 -> 119
+            b = int(34 + (0) * progress)            # 34 -> 34
+        elif completion < 66:
+            # Amber to teal (33-66%)
+            progress = (completion - 33) / 33
+            r = int(217 + (52 - 217) * progress)   # 217 -> 52
+            g = int(119 + (152 - 119) * progress)  # 119 -> 152
+            b = int(34 + (102 - 34) * progress)    # 34 -> 102
         else:
-            # Yellow to green (60-120°)
-            r = int((120 - hue) / 60 * 255)
-            g = 255
-            b = 0
+            # Teal to dark green (66-100%)
+            progress = (completion - 66) / 34
+            r = int(52 + (34 - 52) * progress)     # 52 -> 34
+            g = int(152 + (139 - 152) * progress)  # 152 -> 139
+            b = int(102 + (58 - 102) * progress)   # 102 -> 58
 
         cell_colour = colors.Color(r / 255, g / 255, b / 255)
 
