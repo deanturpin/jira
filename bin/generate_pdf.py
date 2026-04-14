@@ -460,20 +460,27 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
 
         cell_colour = colors.Color(r / 255, g / 255, b / 255)
 
-        # Create cell content with full epic key
+        # Create cell content with full epic key and title
         epic_key_text = epic['epic_key']
         if flagged_epics.get(epic['epic_key'], False):
             epic_key_text = f"{epic_key_text} 🛑"
 
-        # Create clickable link
+        # Truncate epic name to fit in cell
+        epic_name = epic['epic_name']
+        max_name_length = 30
+        if len(epic_name) > max_name_length:
+            epic_name = epic_name[:max_name_length-3] + '...'
+
+        # Create clickable link with epic key, title, and percentage
         epic_url = f"{jira_url}/browse/{epic['epic_key']}"
-        cell_content = f'''<link href="{epic_url}" color="white"><b>{epic_key_text}</b><br/>{completion:.0f}%</link>'''
+        cell_content = f'''<link href="{epic_url}" color="white"><b>{epic_key_text}</b><br/><font size="7">{epic_name}</font><br/>{completion:.0f}%</link>'''
         cell_para = Paragraph(cell_content, ParagraphStyle(
             'GridCell',
             parent=styles['Normal'],
             fontSize=10,
             alignment=TA_CENTER,
-            textColor=colors.white
+            textColor=colors.white,
+            leading=11
         ))
 
         grid_data[row_idx].append(cell_para)
