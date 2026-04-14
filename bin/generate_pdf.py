@@ -401,6 +401,91 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
     story.append(metrics_table)
     story.append(Spacer(1, 8*mm))
 
+    # Epic completion grid
+    story.append(Paragraph('Epic Progress Overview', ParagraphStyle(
+        'SectionHeader',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#667eea'),
+        spaceAfter=5
+    )))
+    story.append(Spacer(1, 3*mm))
+
+    # Build grid of epics with completion-based colour gradients
+    grid_cols = 4
+    grid_data = []
+    grid_styles = [
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+    ]
+
+    # Create grid cells
+    for idx, epic in enumerate(epic_data):
+        row_idx = idx // grid_cols
+        col_idx = idx % grid_cols
+
+        if col_idx == 0:
+            grid_data.append([])
+
+        # Calculate completion percentage
+        completion = epic['progress_pct']
+
+        # Create gradient from red (0%) to green (100%)
+        # Use HSV colour space: red=0°, green=120°
+        # Convert to RGB for reportlab
+        hue = completion * 1.2  # 0-120 degrees
+        r, g, b = 0, 0, 0
+
+        if hue <= 60:
+            # Red to yellow (0-60°)
+            r = 255
+            g = int(hue / 60 * 255)
+            b = 0
+        else:
+            # Yellow to green (60-120°)
+            r = int((120 - hue) / 60 * 255)
+            g = 255
+            b = 0
+
+        cell_colour = colors.Color(r / 255, g / 255, b / 255)
+
+        # Create cell content
+        epic_key_text = epic['epic_key'].split('-')[1]  # Just the number
+        if flagged_epics.get(epic['epic_key'], False):
+            epic_key_text = f"{epic_key_text} 🛑"
+
+        # Create clickable link
+        epic_url = f"{jira_url}/browse/{epic['epic_key']}"
+        cell_content = f'''<link href="{epic_url}" color="white"><b>{epic_key_text}</b><br/>{completion:.0f}%</link>'''
+        cell_para = Paragraph(cell_content, ParagraphStyle(
+            'GridCell',
+            parent=styles['Normal'],
+            fontSize=10,
+            alignment=TA_CENTER,
+            textColor=colors.white
+        ))
+
+        grid_data[row_idx].append(cell_para)
+
+        # Apply background colour to this cell
+        grid_styles.append(('BACKGROUND', (col_idx, row_idx), (col_idx, row_idx), cell_colour))
+
+    # Pad final row if needed
+    if grid_data and len(grid_data[-1]) < grid_cols:
+        while len(grid_data[-1]) < grid_cols:
+            grid_data[-1].append('')
+
+    if grid_data:
+        grid_table = Table(grid_data, colWidths=[42.5*mm] * grid_cols)
+        grid_table.setStyle(TableStyle(grid_styles))
+        story.append(grid_table)
+        story.append(Spacer(1, 5*mm))
+
     # Sprint velocity trend combined with summary on first page
     velocity_chart_buf = create_velocity_chart(velocity_data, velocity_stats, actual_velocity)
     if velocity_chart_buf:
