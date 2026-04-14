@@ -432,34 +432,36 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         if col_idx == 0:
             grid_data.append([])
 
-        # Calculate completion percentage
+        # Calculate completion percentage with exponential curve
         completion = epic['progress_pct']
+        # Apply exponential curve (stays red longer, transitions faster near completion)
+        exponential_completion = (completion / 100) ** 2 * 100
 
         # Create subdued gradient from dark red (0%) through amber to dark green (100%)
         # All colours maintain good contrast with white text
-        if completion < 33:
+        if exponential_completion < 33:
             # Dark red to amber (0-33%)
-            progress = completion / 33
+            progress = exponential_completion / 33
             r = int(178 + (217 - 178) * progress)  # 178 -> 217
             g = int(34 + (119 - 34) * progress)    # 34 -> 119
             b = int(34 + (0) * progress)            # 34 -> 34
-        elif completion < 66:
+        elif exponential_completion < 66:
             # Amber to teal (33-66%)
-            progress = (completion - 33) / 33
+            progress = (exponential_completion - 33) / 33
             r = int(217 + (52 - 217) * progress)   # 217 -> 52
             g = int(119 + (152 - 119) * progress)  # 119 -> 152
             b = int(34 + (102 - 34) * progress)    # 34 -> 102
         else:
             # Teal to dark green (66-100%)
-            progress = (completion - 66) / 34
+            progress = (exponential_completion - 66) / 34
             r = int(52 + (34 - 52) * progress)     # 52 -> 34
             g = int(152 + (139 - 152) * progress)  # 152 -> 139
             b = int(102 + (58 - 102) * progress)   # 102 -> 58
 
         cell_colour = colors.Color(r / 255, g / 255, b / 255)
 
-        # Create cell content
-        epic_key_text = epic['epic_key'].split('-')[1]  # Just the number
+        # Create cell content with full epic key
+        epic_key_text = epic['epic_key']
         if flagged_epics.get(epic['epic_key'], False):
             epic_key_text = f"{epic_key_text} 🛑"
 
