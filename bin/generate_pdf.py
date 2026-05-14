@@ -270,8 +270,8 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
                     'priority_num': priority_num
                 })
 
-    # Sort by priority first (lower number = higher priority), then by remaining work
-    epic_data.sort(key=lambda e: (e['priority_num'], -e['remaining_points']))
+    # Sort by remaining work (largest first)
+    epic_data.sort(key=lambda e: -e['remaining_points'])
 
     # Log epic stats and get deltas from previous run
     from stats_logger import StatsLogger
