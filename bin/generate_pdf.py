@@ -208,8 +208,9 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
                     'color': {'key': 'color_4'}  # default colour for non-board epics
                 })
 
-    # Filter out excluded epics
+    # Filter out excluded epics and keep them for later display
     active_epics = [e for e in epics if not e.get('done', False) and e['key'] not in exclude_keys]
+    excluded_epics = [e for e in epics if not e.get('done', False) and e['key'] in exclude_keys]
     if exclude_keys:
         print(f"  Excluding epics: {', '.join(sorted(exclude_keys))}")
 
@@ -653,6 +654,56 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
     epic_table.setStyle(TableStyle(epic_table_styles))
 
     story.append(epic_table)
+
+    # Add excluded epics section if any
+    if excluded_epics:
+        story.append(Spacer(1, 8*mm))
+
+        excluded_header_style = ParagraphStyle(
+            'ExcludedHeader',
+            parent=styles['Heading2'],
+            fontSize=12,
+            textColor=colors.grey,
+            spaceAfter=3
+        )
+        story.append(Paragraph('Excluded Epics', excluded_header_style))
+        story.append(Spacer(1, 2*mm))
+
+        excluded_table_data = [['Epic', 'Name', 'Reason']]
+        excluded_table_styles = [
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8f9fa')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ]
+
+        for excluded_epic in excluded_epics:
+            epic_key = excluded_epic['key']
+            epic_name = excluded_epic.get('summary', excluded_epic.get('name', 'Unnamed'))
+
+            # Create clickable link
+            epic_url = f"{jira_url}/browse/{epic_key}"
+            epic_key_link = f'<link href="{epic_url}" color="blue">{epic_key}</link>'
+            epic_key_display = Paragraph(epic_key_link, styles['Normal'])
+
+            excluded_table_data.append([
+                epic_key_display,
+                epic_name[:50] + '...' if len(epic_name) > 50 else epic_name,
+                'Manually excluded'
+            ])
+
+        excluded_table = Table(excluded_table_data, colWidths=[25*mm, 100*mm, 45*mm])
+        excluded_table.setStyle(TableStyle(excluded_table_styles))
+        story.append(excluded_table)
 
     # Add historical trends chart if it exists
     trends_path = f'../public/{project_key}_trends.png'
