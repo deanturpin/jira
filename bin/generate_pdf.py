@@ -365,6 +365,23 @@ def generate_project_pdf(client, project_key, board_id, team_size, jira_url, tar
         alignment=TA_CENTER
     )
     story.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", timestamp_style))
+
+    # Next sprint details
+    if velocity_data:
+        next_sprint_start = project_start.strftime('%Y-%m-%d')
+        sprint_length_weeks = int(os.getenv(f'SPRINT_LENGTH_WEEKS_{project_key.upper()}', os.getenv('SPRINT_LENGTH_WEEKS', '1')))
+        next_sprint_end = (project_start + timedelta(days=sprint_length_weeks * 7 - 1)).strftime('%Y-%m-%d')
+
+        sprint_info_style = ParagraphStyle(
+            'SprintInfo',
+            parent=styles['Normal'],
+            fontSize=11,
+            textColor=colors.HexColor('#667eea'),
+            alignment=TA_CENTER,
+            spaceAfter=3
+        )
+        story.append(Paragraph(f"Next Sprint: {next_sprint_start} to {next_sprint_end}", sprint_info_style))
+
     story.append(Spacer(1, 5*mm))
 
     # Metrics summary table (portrait-optimised)
