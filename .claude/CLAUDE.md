@@ -1,13 +1,43 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Jira Planning Tools - Project Context
 
 This project generates automated Jira planning dashboards with velocity tracking, epic timelines, and Gantt charts.
 
 ## Project Architecture
 
-- **Language**: Python 3
-- **Sprint Cadence**: 1-week sprints
+- **Language**: Python 3 (no test suite — verification is visual via generated output)
+- **Sprint Cadence**: 1-week sprints (velocity is per-sprint = per-week; `SPRINT_LENGTH_WEEKS_N` exists in `.env`/README but is not yet wired into the projection code)
 - **Velocity Window**: Last 6 months of completed sprints
 - **Multi-Project**: Supports multiple projects via numbered environment variables
+
+## Commands
+
+All Python tools depend on the project venv. The Makefile invokes them as `cd bin && ../venv/bin/python <script>` — scripts import sibling modules by bare name, so they **must be run from `bin/`** (or via the Makefile). For ad-hoc runs: `source venv/bin/activate` first.
+
+```bash
+make              # Default: generate dashboard + Gantt + trends + PDF for all projects (runs generate_all.py)
+make dashboard    # HTML dashboards only
+make gantt        # Gantt charts only
+make pdf          # PDF reports only
+make velocity     # Velocity chart PNG only
+make trends       # Trend charts from historical stats CSVs
+make clean        # Remove all generated files in public/
+make deploy       # Deploy public/ to VPS (deploy-to-vps.sh)
+```
+
+`make` runs `bin/generate_all.py`, which connects to Jira **once** and shares a single `JiraClient` across all projects and all generators (dashboard → Gantt → trends → PDF). Prefer extending `generate_all.py` over re-running individual generators when working across outputs.
+
+## Data Flow / API Layers
+
+`jira_client.py` is the only HTTP layer. It uses two Jira API versions:
+
+- **`/rest/agile/1.0`** (`_get` helper) — boards, sprints, sprint issues, epics
+- **`/rest/api/3/search`** (direct `requests` call) — epic child issues via JQL (`parent = {epic_key}`)
+
+All list endpoints paginate at `maxResults=50`. The generators consume `JiraClient` + `VelocityCalculator`; `stats_logger.py` appends a row to the history CSV on each run and renders trend charts.
 
 ## Key Files
 
@@ -79,6 +109,13 @@ JIRA_PROJECT_KEY_2, JIRA_BOARD_ID_2, TEAM_SIZE_2
 ```
 
 Falls back to non-numbered variables (`JIRA_PROJECT_KEY`, `JIRA_BOARD_ID`, `TEAM_SIZE`) if no numbered ones found.
+
+## Deployment
+
+Two deployment paths exist:
+
+- **GitLab CI** (`.gitlab-ci.yml`) — scheduled pipeline (Monday 1am GMT) installs deps, downloads the previous stats CSV from GitLab Pages for delta continuity, runs `generate_all.py`, then publishes `public/` to GitLab Pages. A separate manual `close_sprint` job runs on a Friday `SCHEDULE_TYPE=sprint_close` schedule. Project config is supplied via GitLab CI/CD variables, not a committed `.env`.
+- **VPS** (`make deploy` → `deploy-to-vps.sh`) — rsyncs `public/` to a self-hosted box. Daily email reports are driven by `bin/send_daily_report.py` (Resend API) + cron (see `CRON_SETUP.md`); `send_daily_report.py` only sends pre-existing PDFs, so `make` must run first.
 
 ## Security Considerations
 
